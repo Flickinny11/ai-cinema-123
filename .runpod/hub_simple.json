@@ -55,12 +55,12 @@
     ]
   },
   "runtime": {
-    "handler": "simple_handler.py",
+    "handler": "runpod_handler.py",
     "handler_function": "handler",
     "python_version": "3.10",
     "container_start_timeout": 60,
     "include_files": [
-      "simple_handler.py"
+      "runpod_handler.py"
     ]
   },
   "schema": {
