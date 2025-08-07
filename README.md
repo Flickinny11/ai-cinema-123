@@ -1,6 +1,6 @@
 # 🎬 Cinema AI Production Pipeline v2.0
 
-[![RunPod](https://img.shields.io/badge/Deploy%20on-RunPod-purple?style=for-the-badge)](https://runpod.io/console/deploy?template=cinema-ai-production)
+[![Runpod](https://api.runpod.io/badge/Flickinny11/ai-cinema-test-1)](https://console.runpod.io/hub/Flickinny11/ai-cinema-test-1)
 [![GPU](https://img.shields.io/badge/GPU-H100%2FA100%2080GB-green?style=for-the-badge)](https://runpod.io)
 [![Models](https://img.shields.io/badge/Models-HunyuanVideo%20|%20LTX--Video%20|%20MusicGen-blue?style=for-the-badge)](https://github.com)
 
