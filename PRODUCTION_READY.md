@@ -11,7 +11,7 @@ This repository has been comprehensively analyzed and prepared for RunPod deploy
 - **Solution**: Moved both files to repository root for proper importing
 - **Impact**: Eliminates `ModuleNotFoundError` on startup
 
-### 2. Error Handling & Graceful Degradation  
+### 2. Error Handling & Graceful Degradation
 - **Problem**: Hard dependencies on packages that might not be available (AudioCraft, TTS, specific diffusers models)
 - **Solution**: Added comprehensive try/catch blocks with fallback handling
 - **Impact**: Pipeline starts successfully even if some models are unavailable
@@ -36,7 +36,7 @@ This repository has been comprehensively analyzed and prepared for RunPod deploy
 ### 1. Sync Repository
 ```bash
 # In RunPod, sync this repository
-git clone https://github.com/Flickinny11/ai-cinema-test-1.git
+git clone https://github.com/Flickinny11/ai-cinema-123.git
 ```
 
 ### 2. Build Docker Image
@@ -66,14 +66,14 @@ The pipeline supports multiple modes based on available GPU memory:
 
 ### Cinema Mode (80GB+ VRAM)
 - HunyuanVideo 13B (if available)
-- LTX-Video 13B  
+- LTX-Video 13B
 - MusicGen Large
 - AudioGen Medium
 - XTTS-v2
 
 ### Balanced Mode (40GB+ VRAM)
 - LTX-Video 13B
-- MusicGen Medium  
+- MusicGen Medium
 - XTTS-v2
 
 ### Fast Mode (24GB+ VRAM)
@@ -138,6 +138,6 @@ If you encounter any issues:
 3. Verify API keys are set if using external services
 
 ---
-**Repository Status**: 🟢 PRODUCTION READY  
-**Last Updated**: August 2025  
+**Repository Status**: 🟢 PRODUCTION READY
+**Last Updated**: August 2025
 **Deployment Platform**: RunPod Serverless

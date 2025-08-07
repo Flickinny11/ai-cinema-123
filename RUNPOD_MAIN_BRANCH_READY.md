@@ -7,7 +7,7 @@ This document confirms that the main branch contains all necessary files and con
 ## 📁 Main Branch File Structure
 
 ```
-ai-cinema-test-1/ (main branch)
+ai-cinema-123/ (main branch)
 ├── .runpod/                    ✅ REQUIRED
 │   ├── hub.json               ✅ Hub configuration
 │   └── tests.json             ✅ Test cases
@@ -50,7 +50,7 @@ ai-cinema-test-1/ (main branch)
 
 ### ✅ README Badge
 - **File**: `README.md`
-- **Badge**: `[![Runpod](https://api.runpod.io/badge/Flickinny11/ai-cinema-test-1)]` ✅
+- **Badge**: `[![Runpod](https://api.runpod.io/badge/Flickinny11/ai-cinema-123)]` ✅
 - **URL**: Working and accessible ✅
 
 ## 🏷️ Git Status

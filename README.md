@@ -1,6 +1,6 @@
 # 🎬 Cinema AI Production Pipeline v2.0
 
-[![Runpod](https://api.runpod.io/badge/Flickinny11/ai-cinema-test-1)](https://console.runpod.io/hub/Flickinny11/ai-cinema-test-1)
+[![Runpod](https://api.runpod.io/badge/Flickinny11/ai-cinema-123)](https://console.runpod.io/hub/Flickinny11/ai-cinema-123)
 [![GPU](https://img.shields.io/badge/GPU-H100%2FA100%2080GB-green?style=for-the-badge)](https://runpod.io)
 [![Models](https://img.shields.io/badge/Models-HunyuanVideo%20|%20LTX--Video%20|%20MusicGen-blue?style=for-the-badge)](https://github.com)
 
@@ -53,8 +53,8 @@ Complete pipeline for generating cinema-quality videos with:
 ### Manual Deploy
 ```bash
 # Clone repository
-git clone https://github.com/Flickinny11/ai-cinema-test-1
-cd ai-cinema-test-1
+git clone https://github.com/Flickinny11/ai-cinema-123
+cd ai-cinema-123
 
 # Deploy to RunPod Serverless
 # The repository is pre-configured for RunPod serverless deployment

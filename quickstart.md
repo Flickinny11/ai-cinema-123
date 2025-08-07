@@ -4,8 +4,8 @@
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/Flickinny11/ai-cinema-test-1
-cd ai-cinema-test-1
+git clone https://github.com/Flickinny11/ai-cinema-123
+cd ai-cinema-123
 
 # 2. Deploy to RunPod (replace with your API key)
 export RUNPOD_API_KEY="your_api_key_here"

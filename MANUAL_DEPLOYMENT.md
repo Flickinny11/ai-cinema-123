@@ -12,7 +12,7 @@
 ### Template Configuration
 - **Name**: `cinema-ai-production-v2`
 - **Description**: `Cinema-quality AI video generation with HunyuanVideo, LTX-Video, MusicGen, AudioGen, XTTS-v2`
-- **Dockerfile URL**: `https://github.com/Flickinny11/ai-cinema-test-1/blob/main/Dockerfile`
+- **Dockerfile URL**: `https://github.com/Flickinny11/ai-cinema-123/blob/main/Dockerfile`
 - **Container Disk**: `350 GB`
 - **Volume Size**: `100 GB`
 - **Volume Mount Path**: `/models`

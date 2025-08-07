@@ -20,10 +20,10 @@ def handler(event):
         # Extract input data
         input_data = event.get("input", {})
         job_id = event.get("id", "unknown")
-        
+
         logger.info(f"🎯 Job {job_id} started")
         logger.info(f"Input: {input_data}")
-        
+
         # Simple response for testing
         result = {
             "status": "success",
@@ -31,10 +31,10 @@ def handler(event):
             "job_id": job_id,
             "input_received": input_data
         }
-        
+
         logger.info(f"✅ Job {job_id} completed successfully")
         return result
-        
+
     except Exception as e:
         logger.error(f"Handler error: {e}")
         return {
@@ -45,6 +45,6 @@ def handler(event):
 if __name__ == "__main__":
     logger.info("🚀 Starting Minimal RunPod Test Handler")
     logger.info("Version: 1.0 - Test Edition")
-    
+
     # Start the serverless worker
     runpod.serverless.start({"handler": handler})
