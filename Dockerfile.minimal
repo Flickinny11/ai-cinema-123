@@ -57,7 +57,7 @@ RUN python3.10 -m pip install --no-cache-dir \
 RUN mkdir -p /runpod-volume /runpod-volume/cache /app/output
 
 # Copy only essential files
-COPY runpod_handler_minimal.py /app/runpod_handler.py
+COPY runpod_handler_production.py /app/runpod_handler.py
 COPY cinema_pipeline.py /app/
 COPY script_processor.py /app/
 COPY human_sounds.py /app/
