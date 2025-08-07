@@ -62,7 +62,7 @@
     "handler": "runpod_handler.py",
     "handler_function": "handler",
     "python_version": "3.10",
-    "container_start_timeout": 300
+    "container_start_timeout": 600
   },
   "schema": {
     "input": {
@@ -70,7 +70,13 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["script_to_video", "single_scene", "batch_scenes", "concept_to_script", "health_check"],
+          "enum": [
+            "script_to_video",
+            "single_scene",
+            "batch_scenes",
+            "concept_to_script",
+            "health_check"
+          ],
           "description": "Type of processing to perform"
         },
         "script": {

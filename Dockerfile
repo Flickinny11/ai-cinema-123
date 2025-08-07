@@ -38,6 +38,22 @@ RUN apt-get update && apt-get install -y \
     libsox-fmt-all \
     cmake \
     ninja-build \
+    pkg-config \
+    libffi-dev \
+    libssl-dev \
+    libjpeg-dev \
+    libpng-dev \
+    zlib1g-dev \
+    libtiff5-dev \
+    libfreetype6-dev \
+    liblcms2-dev \
+    libwebp-dev \
+    libharfbuzz-dev \
+    libfribidi-dev \
+    libxcb1-dev \
+    espeak \
+    espeak-data \
+    libespeak-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip
@@ -61,11 +77,21 @@ RUN python3.10 -m pip install --no-cache-dir \
     sentencepiece==0.2.0 \
     protobuf==4.25.3
 
-# Copy requirements first for better Docker layer caching
+# Copy requirements and installation script
 COPY requirements.txt /app/
+COPY requirements_core.txt /app/
+COPY install_packages.py /app/
 
-# Install Python packages in optimized order
-RUN python3.10 -m pip install --no-cache-dir -r requirements.txt
+# Install basic build tools first
+RUN python3.10 -m pip install --no-cache-dir \
+    wheel \
+    setuptools \
+    cython \
+    numpy==1.24.3 \
+    scipy==1.13.0
+
+# Use robust installation script
+RUN python3.10 /app/install_packages.py
 
 # Enable HF Transfer for faster downloads
 ENV HF_HUB_ENABLE_HF_TRANSFER=1

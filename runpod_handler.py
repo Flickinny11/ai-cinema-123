@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 pipeline = None
 
 def initialize_pipeline():
-    """Initialize pipeline on worker startup"""
+    """Initialize pipeline on worker startup with robust error handling"""
     global pipeline
     
     logger.info("="*60)
@@ -29,53 +29,77 @@ def initialize_pipeline():
     logger.info("="*60)
     
     try:
-        # Import here to handle missing dependencies gracefully
-        import torch
-        from cinema_pipeline import CinemaPipeline, Scene, cleanup
-        
-        logger.info(f"PyTorch: {torch.__version__}")
-        logger.info(f"CUDA Available: {torch.cuda.is_available()}")
+        # Check PyTorch first
+        try:
+            import torch
+            logger.info(f"✅ PyTorch: {torch.__version__}")
+            logger.info(f"✅ CUDA Available: {torch.cuda.is_available()}")
+        except ImportError:
+            logger.error("❌ PyTorch not available")
+            pipeline = None
+            return
 
+        # Check GPU availability
         if torch.cuda.is_available():
-            logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
-            vram = torch.cuda.get_device_properties(0).total_memory / 1024**3
-            logger.info(f"VRAM: {vram:.1f}GB")
+            try:
+                logger.info(f"✅ GPU: {torch.cuda.get_device_name(0)}")
+                vram = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                logger.info(f"✅ VRAM: {vram:.1f}GB")
 
-            # Log model capabilities based on VRAM
-            if vram >= 80:
-                logger.info("✅ Full Cinema Mode: All models enabled")
-                logger.info("  • HunyuanVideo (13B) - Cinema quality")
-                logger.info("  • LTX-Video (13B) - Real-time generation")
-                logger.info("  • MusicGen-Large - Orchestral music")
-                logger.info("  • AudioGen-Medium - Sound effects")
-                logger.info("  • XTTS-v2 - Voice cloning")
-            elif vram >= 40:
-                logger.info("⚡ Balanced Mode: Optimized models")
-                logger.info("  • LTX-Video (13B) - Fast generation")
-                logger.info("  • MusicGen-Medium - Music generation")
-                logger.info("  • XTTS-v2 - Voice cloning")
-            else:
-                logger.info("🚀 Fast Mode: Consumer GPU optimized")
-                logger.info("  • LTX-Video (Quantized) - Quick generation")
-                logger.info("  • Basic audio models")
+                # Log model capabilities based on VRAM
+                if vram >= 80:
+                    logger.info("🎬 Full Cinema Mode: All models enabled")
+                    logger.info("  • HunyuanVideo (13B) - Cinema quality")
+                    logger.info("  • LTX-Video (13B) - Real-time generation")
+                    logger.info("  • MusicGen-Large - Orchestral music")
+                    logger.info("  • AudioGen-Medium - Sound effects")
+                    logger.info("  • XTTS-v2 - Voice cloning")
+                elif vram >= 40:
+                    logger.info("⚡ Balanced Mode: Optimized models")
+                    logger.info("  • LTX-Video (13B) - Fast generation")
+                    logger.info("  • MusicGen-Medium - Music generation")
+                    logger.info("  • XTTS-v2 - Voice cloning")
+                else:
+                    logger.info("🚀 Fast Mode: Consumer GPU optimized")
+                    logger.info("  • LTX-Video (Quantized) - Quick generation")
+                    logger.info("  • Basic audio models")
+            except Exception as e:
+                logger.warning(f"GPU detection failed: {e}")
         else:
-            logger.warning("No GPU detected - running in CPU mode (very slow)")
+            logger.warning("⚠️  No GPU detected - running in CPU mode (very slow)")
 
+        # Try to import cinema pipeline
         logger.info("="*60)
-        logger.info("Initializing pipeline...")
+        logger.info("🔄 Initializing pipeline...")
+        
+        try:
+            from cinema_pipeline import CinemaPipeline, Scene, cleanup
+            logger.info("✅ Cinema pipeline modules imported")
+        except ImportError as e:
+            logger.error(f"❌ Cinema pipeline import failed: {e}")
+            logger.error("   This is expected if some dependencies failed to install")
+            logger.info("🔄 Pipeline will run in minimal mode")
+            pipeline = None
+            return
 
-        pipeline = CinemaPipeline()
+        # Try to initialize the pipeline
+        try:
+            pipeline = CinemaPipeline()
+            logger.info("✅ Pipeline initialized successfully!")
+            logger.info("🎬 Ready for production video generation!")
+        except Exception as e:
+            logger.error(f"❌ Pipeline initialization failed: {e}")
+            logger.error("   Some models may not be available")
+            logger.info("🔄 Pipeline will run in minimal mode")
+            pipeline = None
+            return
 
-        logger.info("✅ Pipeline ready for production!")
         logger.info("="*60)
         
-    except ImportError as e:
-        logger.error(f"Missing dependencies: {e}")
-        logger.error("Running in minimal mode - some features disabled")
-        pipeline = None
     except Exception as e:
-        logger.error(f"Failed to initialize pipeline: {e}")
+        logger.error(f"❌ Critical initialization error: {e}")
         logger.error(traceback.format_exc())
+        logger.info("🔄 Running in minimal fallback mode")
         pipeline = None
         
 # Initialize pipeline when module loads (RunPod best practice)
