@@ -1,0 +1,56 @@
+# Reduce Docker build context size
+.git/
+.github/
+.vscode/
+.idea/
+*.md
+*.log
+*.tmp
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.env.*
+node_modules/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Documentation and analysis files
+CURRENT_VS_TARGET_ANALYSIS.md
+DOCKER_BUILD_FIXED.md
+RUNPOD_DEPLOYMENT_COMPLETE.md
+RUNPOD_SYNC_FIXED.md
+RUNPOD_API_STATUS_REPORT.md
+cleanup_repository.py
+
+# Test and monitoring files
+test_*.py
+monitor_*.py
+check_*.sh
+validate_*.py
+create_*.py
+deploy_*.py
+push_*.sh
+
+# Backup and alternative files
+Dockerfile.optimized
+requirements_core.txt
+.env.template
+runpod.toml
