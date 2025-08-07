@@ -1,0 +1,96 @@
+{
+  "version": "2.0.0",
+  "name": "Cinema AI Test",
+  "description": "Minimal test configuration for RunPod Hub detection",
+  "author": "Flickinny11",
+  "git_url": "https://github.com/Flickinny11/ai-cinema-test-1",
+  "image_name": "cinema-ai-test",
+  "category": "AI/ML",
+  "keywords": [
+    "test",
+    "video-generation",
+    "ai"
+  ],
+  "build": {
+    "base_image": "python:3.10-slim",
+    "dockerfile_path": "Dockerfile",
+    "system_packages": [
+      "python3.10",
+      "python3-pip"
+    ],
+    "python_packages": [
+      "runpod==1.6.0"
+    ]
+  },
+  "template": {
+    "name": "cinema-ai-test",
+    "container_disk_in_gb": 10,
+    "volume_in_gb": 0,
+    "volume_mount_path": "/workspace",
+    "container_registry_auth_id": null,
+    "dockerfile_path": "Dockerfile",
+    "env": [
+      {
+        "key": "TEST_MODE",
+        "value": "true",
+        "description": "Test mode enabled"
+      }
+    ],
+    "docker_args": "",
+    "is_public": true
+  },
+  "serverless": {
+    "scaled_settings": {
+      "min_workers": 0,
+      "max_workers": 1,
+      "scale_type": "QUEUE_DELAY",
+      "scale_value": 30,
+      "idle_timeout": 300
+    },
+    "gpu_types": [
+      "NVIDIA A100-SXM4-80GB"
+    ],
+    "supported_input_types": [
+      "test",
+      "health_check"
+    ]
+  },
+  "runtime": {
+    "handler": "test_handler.py",
+    "handler_function": "handler",
+    "python_version": "3.10",
+    "container_start_timeout": 60,
+    "include_files": [
+      "test_handler.py"
+    ]
+  },
+  "schema": {
+    "input": {
+      "type": "object",
+      "properties": {
+        "test": {
+          "type": "string",
+          "description": "Test input"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Success or error"
+        },
+        "message": {
+          "type": "string",
+          "description": "Response message"
+        }
+      }
+    }
+  },
+  "health_check": {
+    "endpoint": "/health",
+    "timeout": 10,
+    "expected_status": 200
+  }
+}
