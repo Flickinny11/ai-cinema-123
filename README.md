@@ -53,8 +53,8 @@ Complete pipeline for generating cinema-quality videos with:
 ### Manual Deploy
 ```bash
 # Clone repository
-git clone https://github.com/Flickinny11/cinema-ai-production-complete
-cd cinema-ai-production-complete
+git clone https://github.com/Flickinny11/ai-cinema-test-1
+cd ai-cinema-test-1
 
 # Deploy to RunPod
 python deploy_to_runpod.py

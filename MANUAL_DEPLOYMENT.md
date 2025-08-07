@@ -12,7 +12,7 @@
 ### Template Configuration
 - **Name**: `cinema-ai-production-v2`
 - **Description**: `Cinema-quality AI video generation with HunyuanVideo, LTX-Video, MusicGen, AudioGen, XTTS-v2`
-- **Dockerfile URL**: `https://github.com/Flickinny11/cinema-ai-production-complete/blob/main/Dockerfile`
+- **Dockerfile URL**: `https://github.com/Flickinny11/ai-cinema-test-1/blob/main/Dockerfile`
 - **Container Disk**: `350 GB`
 - **Volume Size**: `100 GB`
 - **Volume Mount Path**: `/models`
@@ -37,7 +37,7 @@ Add these environment variables:
 ### Endpoint Configuration
 - **Name**: `cinema-ai-endpoint`
 - **Template**: Select your created template
-- **GPU Types**: 
+- **GPU Types**:
   - `NVIDIA A100-SXM4-80GB`
   - `NVIDIA H100 80GB HBM3`
 - **Idle Timeout**: `10 minutes`
@@ -165,10 +165,10 @@ response = requests.post(
 ```
 
 ## Success Indicators
-✅ Template builds successfully  
-✅ Endpoint responds to health checks  
-✅ Video generation completes  
-✅ Audio sync works properly  
-✅ Models cache correctly  
+✅ Template builds successfully
+✅ Endpoint responds to health checks
+✅ Video generation completes
+✅ Audio sync works properly
+✅ Models cache correctly
 
 Your Cinema AI pipeline is now ready for production! 🎬

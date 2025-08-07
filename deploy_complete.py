@@ -13,7 +13,7 @@ from typing import Dict, Optional
 
 # Configuration
 API_KEY = os.getenv("RUNPOD_API_KEY", "your_api_key_here")
-GITHUB_REPO = "https://github.com/Flickinny11/cinema-ai-production-complete"
+GITHUB_REPO = "https://github.com/Flickinny11/ai-cinema-test-1"
 
 class CinemaAIDeployer:
     """Deploy Cinema AI to RunPod"""
@@ -43,12 +43,11 @@ class CinemaAIDeployer:
                 {"key": "HF_HUB_ENABLE_HF_TRANSFER", "value": "1"},
                 {"key": "PYTORCH_CUDA_ALLOC_CONF", "value": "max_split_size_mb:512"}
             ],
-            "isServerless": True,
             "dockerArgs": "--gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864"
         }
 
         response = requests.post(
-            f"{self.base_url}/serverless/template",
+            f"{self.base_url}/templates",
             headers=self.headers,
             json=payload,
             timeout=60
@@ -66,7 +65,7 @@ class CinemaAIDeployer:
     def check_template_status(self, template_id: str) -> str:
         """Check template build status"""
         response = requests.get(
-            f"{self.base_url}/serverless/template/{template_id}",
+            f"{self.base_url}/templates/{template_id}",
             headers=self.headers,
             timeout=30
         )
@@ -83,18 +82,16 @@ class CinemaAIDeployer:
         payload = {
             "name": f"cinema-ai-endpoint-{int(time.time())}",
             "templateId": template_id,
-            "gpuIds": "NVIDIA A100-SXM4-80GB,NVIDIA H100 80GB HBM3",
-            "networkVolumeId": None,
+            "gpuIds": ["NVIDIA A100-SXM4-80GB", "NVIDIA H100 80GB HBM3"],
             "idleTimeout": 10,
             "scalerType": "QUEUE_DELAY",
             "scalerValue": 30,
             "workersMin": 0,
-            "workersMax": 10,
-            "flashBoot": True  # Enable fast boot
+            "workersMax": 10
         }
 
         response = requests.post(
-            f"{self.base_url}/serverless/endpoint",
+            f"{self.base_url}/endpoints",
             headers=self.headers,
             json=payload,
             timeout=60
