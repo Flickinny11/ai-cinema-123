@@ -124,8 +124,10 @@
       "container_start_timeout": 600,
       "include_files": [
         "cinema_pipeline.py",
+        "runpod_handler.py", 
         "script_processor.py",
         "human_sounds.py",
+        "download_models.py",
         "model_configs.yaml"
       ]
     },

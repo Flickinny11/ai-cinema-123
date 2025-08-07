@@ -1,11 +1,20 @@
 # Cinema AI Production Pipeline Requirements
-# August 2025 Edition
+# August 2025 Edition - Production Ready
 
 # Core PyTorch
 torch==2.3.0
 torchvision==0.18.0
 torchaudio==2.3.0
 xformers==0.0.26.post1
+
+# Critical missing packages for imports
+scipy==1.13.0
+pyyaml==6.0.1
+opencv-python==4.10.0.84
+librosa==0.10.2
+soundfile==0.12.1
+imageio==2.34.0
+moviepy==1.0.3
 
 # ML Frameworks
 transformers==4.44.0
