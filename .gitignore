@@ -127,3 +127,5 @@ runpod_logs/
 *.tar.gz
 *.rar
 *.7z
+
+.extension/

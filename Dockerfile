@@ -74,13 +74,13 @@ ENV HF_HUB_ENABLE_HF_TRANSFER=1
 RUN mkdir -p /models /models/cache /models/audiocraft /models/hunyuan /models/ltx \
     /models/musicgen /models/xtts /models/foley /app/output /app/temp
 
-# Copy Python files
-COPY cinema_pipeline.py /app/
-COPY runpod_handler.py /app/
-COPY download_models.py /app/
+# Copy Python files in dependency order
 COPY model_configs.yaml /app/
 COPY script_processor.py /app/
 COPY human_sounds.py /app/
+COPY cinema_pipeline.py /app/
+COPY download_models.py /app/
+COPY runpod_handler.py /app/
 
 # Set Python 3.10 as default
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1

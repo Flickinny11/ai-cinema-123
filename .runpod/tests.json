@@ -173,11 +173,11 @@
       }
     ],
     "resources": {
-      "gpu": "NVIDIA A100-SXM4-80GB",
+      "gpu": "NVIDIA RTX A6000",
       "gpu_count": 1,
-      "cpu": 16,
-      "ram": 64,
-      "disk": 350
+      "cpu": 8,
+      "ram": 32,
+      "disk": 150
     },
     "performance_benchmarks": {
       "5s_video_720p": {
