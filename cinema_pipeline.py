@@ -40,7 +40,7 @@ try:
     # Note: HunyuanVideoPipeline and LTXVideoPipeline may not be available in standard diffusers
     # They will be loaded dynamically if available
 except ImportError as e:
-    logger.warning(f"Some diffusers components not available: {e}")
+    logging.warning(f"Some diffusers components not available: {e}")
 
 try:
     from transformers import (
@@ -51,20 +51,20 @@ try:
         CLIPTextModel
     )
 except ImportError as e:
-    logger.error(f"Transformers import failed: {e}")
+    logging.error(f"Transformers import failed: {e}")
     raise
 
 try:
     from audiocraft.models import MusicGen, AudioGen
 except ImportError:
-    logger.warning("AudioCraft not available - audio generation disabled")
+    logging.warning("AudioCraft not available - audio generation disabled")
     MusicGen = None
     AudioGen = None
 
 try:
     from TTS.api import TTS
 except ImportError:
-    logger.warning("TTS not available - voice synthesis disabled")
+    logging.warning("TTS not available - voice synthesis disabled")
     TTS = None
 import librosa
 import moviepy.editor as mpe
