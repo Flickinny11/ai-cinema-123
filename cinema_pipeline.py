@@ -30,24 +30,42 @@ warnings.filterwarnings("ignore")
 from script_processor import DeepSeekScriptProcessor, ScriptScene
 from human_sounds import HumanSoundsGenerator, HumanSound
 
-# Import model libraries
-from diffusers import (
-    DiffusionPipeline,
-    HunyuanVideoPipeline,
-    LTXVideoPipeline,
-    StableAudioPipeline,
-    DDIMScheduler,
-    DPMSolverMultistepScheduler
-)
-from transformers import (
-    AutoTokenizer,
-    AutoModel,
-    pipeline,
-    T5EncoderModel,
-    CLIPTextModel
-)
-from audiocraft.models import MusicGen, AudioGen
-from TTS.api import TTS
+# Import model libraries with error handling
+try:
+    from diffusers import (
+        DiffusionPipeline,
+        DDIMScheduler,
+        DPMSolverMultistepScheduler
+    )
+    # Note: HunyuanVideoPipeline and LTXVideoPipeline may not be available in standard diffusers
+    # They will be loaded dynamically if available
+except ImportError as e:
+    logger.warning(f"Some diffusers components not available: {e}")
+
+try:
+    from transformers import (
+        AutoTokenizer,
+        AutoModel,
+        pipeline,
+        T5EncoderModel,
+        CLIPTextModel
+    )
+except ImportError as e:
+    logger.error(f"Transformers import failed: {e}")
+    raise
+
+try:
+    from audiocraft.models import MusicGen, AudioGen
+except ImportError:
+    logger.warning("AudioCraft not available - audio generation disabled")
+    MusicGen = None
+    AudioGen = None
+
+try:
+    from TTS.api import TTS
+except ImportError:
+    logger.warning("TTS not available - voice synthesis disabled")
+    TTS = None
 import librosa
 import moviepy.editor as mpe
 
@@ -165,35 +183,62 @@ class CinemaPipeline:
         """Load video generation models"""
         try:
             if self.mode == "cinema" and self.enable_hunyuan:
-                # Load HunyuanVideo (13B params)
+                # Load HunyuanVideo (13B params) - with fallback handling
                 logger.info("Loading HunyuanVideo (13B)...")
-                self.models["hunyuan"] = HunyuanVideoPipeline.from_pretrained(
-                    self.MODEL_CONFIGS["hunyuan"]["model_id"],
-                    torch_dtype=self.MODEL_CONFIGS["hunyuan"]["torch_dtype"],
-                    variant=self.MODEL_CONFIGS["hunyuan"]["variant"],
-                    use_safetensors=True
-                ).to(self.device)
+                try:
+                    # Try to load from diffusers
+                    from diffusers import HunyuanVideoPipeline
+                    self.models["hunyuan"] = HunyuanVideoPipeline.from_pretrained(
+                        self.MODEL_CONFIGS["hunyuan"]["model_id"],
+                        torch_dtype=self.MODEL_CONFIGS["hunyuan"]["torch_dtype"],
+                        variant=self.MODEL_CONFIGS["hunyuan"]["variant"],
+                        use_safetensors=True
+                    ).to(self.device)
 
-                # Enable memory efficient attention
-                self.models["hunyuan"].enable_xformers_memory_efficient_attention()
-                self.models["hunyuan"].enable_model_cpu_offload()
-                logger.info("HunyuanVideo loaded successfully")
+                    # Enable memory efficient attention
+                    self.models["hunyuan"].enable_xformers_memory_efficient_attention()
+                    self.models["hunyuan"].enable_model_cpu_offload()
+                    logger.info("HunyuanVideo loaded successfully")
+                except ImportError:
+                    logger.warning("HunyuanVideoPipeline not available in diffusers, using generic pipeline")
+                    # Fallback to generic diffusion pipeline
+                    self.models["hunyuan"] = DiffusionPipeline.from_pretrained(
+                        self.MODEL_CONFIGS["hunyuan"]["model_id"],
+                        torch_dtype=self.MODEL_CONFIGS["hunyuan"]["torch_dtype"],
+                        use_safetensors=True
+                    ).to(self.device)
+                except Exception as e:
+                    logger.error(f"Failed to load HunyuanVideo: {e}")
+                    self.enable_hunyuan = False
 
             if self.enable_ltx:
                 # Load LTX-Video (13B params) for fast generation
                 logger.info("Loading LTX-Video (13B)...")
-                self.models["ltx"] = LTXVideoPipeline.from_pretrained(
-                    self.MODEL_CONFIGS["ltx"]["model_id"],
-                    torch_dtype=self.MODEL_CONFIGS["ltx"]["torch_dtype"],
-                    variant=self.MODEL_CONFIGS["ltx"]["variant"],
-                    use_safetensors=True
-                ).to(self.device)
+                try:
+                    from diffusers import LTXVideoPipeline
+                    self.models["ltx"] = LTXVideoPipeline.from_pretrained(
+                        self.MODEL_CONFIGS["ltx"]["model_id"],
+                        torch_dtype=self.MODEL_CONFIGS["ltx"]["torch_dtype"],
+                        variant=self.MODEL_CONFIGS["ltx"]["variant"],
+                        use_safetensors=True
+                    ).to(self.device)
 
-                # Enable optimizations
-                self.models["ltx"].enable_xformers_memory_efficient_attention()
-                if self.mode != "cinema":
-                    self.models["ltx"].enable_model_cpu_offload()
-                logger.info("LTX-Video loaded successfully")
+                    # Enable optimizations
+                    self.models["ltx"].enable_xformers_memory_efficient_attention()
+                    if self.mode != "cinema":
+                        self.models["ltx"].enable_model_cpu_offload()
+                    logger.info("LTX-Video loaded successfully")
+                except ImportError:
+                    logger.warning("LTXVideoPipeline not available in diffusers, using generic pipeline")
+                    # Fallback to generic diffusion pipeline
+                    self.models["ltx"] = DiffusionPipeline.from_pretrained(
+                        self.MODEL_CONFIGS["ltx"]["model_id"],
+                        torch_dtype=self.MODEL_CONFIGS["ltx"]["torch_dtype"],
+                        use_safetensors=True
+                    ).to(self.device)
+                except Exception as e:
+                    logger.error(f"Failed to load LTX-Video: {e}")
+                    self.enable_ltx = False
 
         except Exception as e:
             logger.error(f"Failed to load video models: {e}")
@@ -216,38 +261,45 @@ class CinemaPipeline:
     def _load_audio_models(self):
         """Load audio generation models"""
         try:
-            # Load MusicGen for music generation
-            logger.info("Loading MusicGen-Large...")
-            self.models["musicgen"] = MusicGen.get_pretrained(
-                self.MODEL_CONFIGS["musicgen"]["model_id"]
-            )
-            if self.device == "cuda":
-                self.models["musicgen"].to(self.device)
-            self.models["musicgen"].set_generation_params(
-                duration=30,
-                temperature=0.8,
-                top_k=250,
-                top_p=0.95
-            )
-            logger.info("MusicGen loaded successfully")
+            if MusicGen is not None:
+                # Load MusicGen for music generation
+                logger.info("Loading MusicGen-Large...")
+                self.models["musicgen"] = MusicGen.get_pretrained(
+                    self.MODEL_CONFIGS["musicgen"]["model_id"]
+                )
+                if self.device == "cuda":
+                    self.models["musicgen"].to(self.device)
+                self.models["musicgen"].set_generation_params(
+                    duration=30,
+                    temperature=0.8,
+                    top_k=250,
+                    top_p=0.95
+                )
+                logger.info("MusicGen loaded successfully")
+            else:
+                logger.warning("MusicGen not available - skipping music generation")
 
-            # Load AudioGen for sound effects
-            logger.info("Loading AudioGen-Medium...")
-            self.models["audiogen"] = AudioGen.get_pretrained(
-                self.MODEL_CONFIGS["audiogen"]["model_id"]
-            )
-            if self.device == "cuda":
-                self.models["audiogen"].to(self.device)
-            self.models["audiogen"].set_generation_params(
-                duration=10,
-                temperature=0.85
-            )
-            logger.info("AudioGen loaded successfully")
+            if AudioGen is not None:
+                # Load AudioGen for sound effects
+                logger.info("Loading AudioGen-Medium...")
+                self.models["audiogen"] = AudioGen.get_pretrained(
+                    self.MODEL_CONFIGS["audiogen"]["model_id"]
+                )
+                if self.device == "cuda":
+                    self.models["audiogen"].to(self.device)
+                self.models["audiogen"].set_generation_params(
+                    duration=10,
+                    temperature=0.85
+                )
+                logger.info("AudioGen loaded successfully")
 
-            # Initialize human sounds generator with AudioGen
-            logger.info("Initializing Human Sounds Generator...")
-            self.human_sounds = HumanSoundsGenerator(self.models["audiogen"])
-            logger.info("Human Sounds Generator initialized")
+                # Initialize human sounds generator with AudioGen
+                logger.info("Initializing Human Sounds Generator...")
+                self.human_sounds = HumanSoundsGenerator(self.models["audiogen"])
+                logger.info("Human Sounds Generator initialized")
+            else:
+                logger.warning("AudioGen not available - skipping sound effects")
+                self.human_sounds = None
 
         except Exception as e:
             logger.error(f"Failed to load audio models: {e}")
@@ -258,21 +310,28 @@ class CinemaPipeline:
     def _load_tts_models(self):
         """Load TTS and voice cloning models"""
         try:
-            # Load XTTS-v2 for voice cloning
-            logger.info("Loading XTTS-v2...")
-            self.models["tts"] = TTS(
-                self.MODEL_CONFIGS["xtts"]["model_id"],
-                gpu=self.MODEL_CONFIGS["xtts"]["gpu"]
-            )
-            logger.info("XTTS-v2 loaded successfully")
+            if TTS is not None:
+                # Load XTTS-v2 for voice cloning
+                logger.info("Loading XTTS-v2...")
+                self.models["tts"] = TTS(
+                    self.MODEL_CONFIGS["xtts"]["model_id"],
+                    gpu=self.MODEL_CONFIGS["xtts"]["gpu"]
+                )
+                logger.info("XTTS-v2 loaded successfully")
+            else:
+                logger.warning("TTS not available - voice synthesis disabled")
+                self.models["tts"] = None
 
         except Exception as e:
             logger.error(f"Failed to load TTS model: {e}")
             # Fallback to simpler TTS
             try:
-                self.models["tts"] = TTS("tts_models/en/ljspeech/tacotron2-DDC")
-                if self.device == "cuda":
-                    self.models["tts"].to(self.device)
+                if TTS is not None:
+                    self.models["tts"] = TTS("tts_models/en/ljspeech/tacotron2-DDC")
+                    if self.device == "cuda":
+                        self.models["tts"].to(self.device)
+                else:
+                    self.models["tts"] = None
             except:
                 self.models["tts"] = None
 

@@ -29,39 +29,50 @@ def initialize():
         logger.info("="*60)
         logger.info("🎬 Cinema AI Production Pipeline v2.0")
         logger.info("="*60)
-        logger.info(f"PyTorch: {torch.__version__}")
-        logger.info(f"CUDA Available: {torch.cuda.is_available()}")
+        
+        try:
+            logger.info(f"PyTorch: {torch.__version__}")
+            logger.info(f"CUDA Available: {torch.cuda.is_available()}")
 
-        if torch.cuda.is_available():
-            logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
-            vram = torch.cuda.get_device_properties(0).total_memory / 1024**3
-            logger.info(f"VRAM: {vram:.1f}GB")
+            if torch.cuda.is_available():
+                logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
+                vram = torch.cuda.get_device_properties(0).total_memory / 1024**3
+                logger.info(f"VRAM: {vram:.1f}GB")
 
-            # Log model capabilities based on VRAM
-            if vram >= 80:
-                logger.info("✅ Full Cinema Mode: All models enabled")
-                logger.info("  • HunyuanVideo (13B) - Cinema quality")
-                logger.info("  • LTX-Video (13B) - Real-time generation")
-                logger.info("  • MusicGen-Large - Orchestral music")
-                logger.info("  • AudioGen-Medium - Sound effects")
-                logger.info("  • XTTS-v2 - Voice cloning")
-            elif vram >= 40:
-                logger.info("⚡ Balanced Mode: Optimized models")
-                logger.info("  • LTX-Video (13B) - Fast generation")
-                logger.info("  • MusicGen-Medium - Music generation")
-                logger.info("  • XTTS-v2 - Voice cloning")
+                # Log model capabilities based on VRAM
+                if vram >= 80:
+                    logger.info("✅ Full Cinema Mode: All models enabled")
+                    logger.info("  • HunyuanVideo (13B) - Cinema quality")
+                    logger.info("  • LTX-Video (13B) - Real-time generation")
+                    logger.info("  • MusicGen-Large - Orchestral music")
+                    logger.info("  • AudioGen-Medium - Sound effects")
+                    logger.info("  • XTTS-v2 - Voice cloning")
+                elif vram >= 40:
+                    logger.info("⚡ Balanced Mode: Optimized models")
+                    logger.info("  • LTX-Video (13B) - Fast generation")
+                    logger.info("  • MusicGen-Medium - Music generation")
+                    logger.info("  • XTTS-v2 - Voice cloning")
+                else:
+                    logger.info("🚀 Fast Mode: Consumer GPU optimized")
+                    logger.info("  • LTX-Video (Quantized) - Quick generation")
+                    logger.info("  • Basic audio models")
             else:
-                logger.info("🚀 Fast Mode: Consumer GPU optimized")
-                logger.info("  • LTX-Video (Quantized) - Quick generation")
-                logger.info("  • Basic audio models")
+                logger.warning("No GPU detected - running in CPU mode (very slow)")
 
-        logger.info("="*60)
-        logger.info("Initializing pipeline...")
+            logger.info("="*60)
+            logger.info("Initializing pipeline...")
 
-        pipeline = CinemaPipeline()
+            pipeline = CinemaPipeline()
 
-        logger.info("✅ Pipeline ready for production!")
-        logger.info("="*60)
+            logger.info("✅ Pipeline ready for production!")
+            logger.info("="*60)
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize pipeline: {e}")
+            logger.error(traceback.format_exc())
+            # Create a minimal pipeline for basic functionality
+            pipeline = None
+            raise RuntimeError(f"Pipeline initialization failed: {e}")
 
 async def process_script(job_input: Dict) -> Dict:
     """Process a full script into multiple scenes"""
@@ -227,22 +238,46 @@ async def process_job(job_input: Dict) -> Dict:
             return await process_batch_scenes(job_input)
 
         elif request_type == "health_check":
-            return {
+            # Comprehensive health check
+            health_status = {
                 "status": "healthy",
-                "mode": pipeline.mode if pipeline else "not_initialized",
-                "models_loaded": list(pipeline.models.keys()) if pipeline else [],
-                "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "none",
-                "vram_gb": torch.cuda.get_device_properties(0).total_memory / 1024**3 if torch.cuda.is_available() else 0,
-                "capabilities": {
-                    "max_duration": 30 if pipeline and pipeline.mode == "cinema" else 15,
-                    "max_resolution": "4k" if pipeline and pipeline.mode == "cinema" else "1080p",
-                    "voice_cloning": pipeline and "tts" in pipeline.models,
-                    "music_generation": pipeline and "musicgen" in pipeline.models,
-                    "sound_effects": pipeline and "audiogen" in pipeline.models,
-                    "human_sounds": pipeline and pipeline.human_sounds is not None,
-                    "script_processing": pipeline and pipeline.script_processor is not None
+                "timestamp": time.time(),
+                "system": {
+                    "gpu_available": torch.cuda.is_available(),
+                    "device_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
+                    "memory_allocated": torch.cuda.memory_allocated() / 1024**3 if torch.cuda.is_available() else 0,
+                    "memory_cached": torch.cuda.memory_cached() / 1024**3 if torch.cuda.is_available() else 0
+                },
+                "pipeline": {
+                    "initialized": pipeline is not None,
+                    "mode": pipeline.mode if pipeline else "not_initialized",
+                    "models_loaded": list(pipeline.models.keys()) if pipeline else [],
+                    "script_processor_available": pipeline and pipeline.script_processor is not None,
+                    "human_sounds_available": pipeline and pipeline.human_sounds is not None
                 }
             }
+            
+            if torch.cuda.is_available():
+                health_status["gpu"] = {
+                    "name": torch.cuda.get_device_name(0),
+                    "vram_total_gb": torch.cuda.get_device_properties(0).total_memory / 1024**3,
+                    "vram_used_gb": torch.cuda.memory_allocated() / 1024**3,
+                    "vram_free_gb": (torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated()) / 1024**3
+                }
+            
+            if pipeline:
+                health_status["capabilities"] = {
+                    "video_generation": "hunyuan" in pipeline.models or "ltx" in pipeline.models,
+                    "music_generation": "musicgen" in pipeline.models,
+                    "sound_effects": "audiogen" in pipeline.models,
+                    "voice_cloning": "tts" in pipeline.models,
+                    "script_processing": pipeline.script_processor is not None,
+                    "human_sounds": pipeline.human_sounds is not None,
+                    "max_duration": 60 if pipeline.mode == "cinema" else 30 if pipeline.mode == "balanced" else 15,
+                    "max_resolution": "4k" if pipeline.mode == "cinema" else "1080p" if pipeline.mode == "balanced" else "720p"
+                }
+            
+            return health_status
 
         elif request_type == "list_models":
             return {

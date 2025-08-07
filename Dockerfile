@@ -131,6 +131,8 @@ COPY cinema_pipeline.py /app/
 COPY runpod_handler.py /app/
 COPY download_models.py /app/
 COPY model_configs.yaml /app/
+COPY script_processor.py /app/
+COPY human_sounds.py /app/
 
 # Set Python 3.10 as default
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
