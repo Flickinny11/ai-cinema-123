@@ -117,11 +117,22 @@ COPY script_processor.py /app/
 COPY human_sounds.py /app/
 COPY cinema_pipeline.py /app/
 COPY download_models.py /app/
-COPY runpod_handler.py /app/
+COPY runpod_handler_fixed.py /app/runpod_handler.py
 
 # Set Python 3.10 as default
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
+
+# Pre-download essential models during build (if space allows)
+RUN python3.10 -c "
+import os
+os.environ['HF_HOME'] = '/models/cache'
+os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '1'
+from pathlib import Path
+Path('/models').mkdir(exist_ok=True)
+Path('/models/cache').mkdir(exist_ok=True)
+print('Model directories created')
+" || echo "Model setup failed"
 
 WORKDIR /app
 
