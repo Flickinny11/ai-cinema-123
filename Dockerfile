@@ -92,6 +92,14 @@ RUN python3.10 -m pip install --no-cache-dir \
 RUN python3.10 -m pip install --no-cache-dir \
     psutil==6.0.0 tqdm==4.66.4 python-dotenv==1.0.1 rich==13.7.1
 
+# Install missing critical dependencies
+RUN python3.10 -m pip install --no-cache-dir \
+    omegaconf==2.3.0 hydra-core==1.3.2 PyYAML==6.0.1
+
+# Install AWS SDK for volume access
+RUN python3.10 -m pip install --no-cache-dir \
+    boto3==1.34.0 botocore==1.34.0
+
 # Install optional packages with error handling
 RUN python3.10 -m pip install --no-cache-dir moviepy==1.0.3 || echo "MoviePy failed"
 RUN python3.10 -m pip install --no-cache-dir ffmpeg-python==0.2.0 || echo "FFmpeg-python failed"
@@ -117,7 +125,7 @@ COPY script_processor.py /app/
 COPY human_sounds.py /app/
 COPY cinema_pipeline.py /app/
 COPY download_models.py /app/
-COPY runpod_handler_fixed.py /app/runpod_handler.py
+COPY runpod_handler_production.py /app/runpod_handler.py
 
 # Set Python 3.10 as default
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1

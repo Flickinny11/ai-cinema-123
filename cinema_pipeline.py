@@ -17,12 +17,24 @@ import torchaudio
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
-import yaml
-from omegaconf import OmegaConf
+try:
+    import yaml
+    from omegaconf import OmegaConf
+except ImportError as e:
+    logger.warning(f"Configuration libraries not available: {e}")
+    yaml = None
+    OmegaConf = None
+
 import imageio
 import soundfile as sf
 from concurrent.futures import ThreadPoolExecutor
-from einops import rearrange
+
+try:
+    from einops import rearrange
+except ImportError:
+    logger.warning("einops not available - some operations may be limited")
+    rearrange = None
+
 import warnings
 warnings.filterwarnings("ignore")
 
