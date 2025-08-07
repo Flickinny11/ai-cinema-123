@@ -1,0 +1,81 @@
+[project]
+uuid = "cinema-ai-pipeline"
+name = "Cinema AI Pipeline"
+description = "Production-ready AI video generation with HunyuanVideo, LTX-Video, MusicGen, and voice cloning"
+
+[project.env]
+HF_HOME = "/models/cache"
+PYTORCH_CUDA_ALLOC_CONF = "max_split_size_mb:512"
+HF_HUB_ENABLE_HF_TRANSFER = "1"
+
+[build]
+base_image = "nvidia/cuda:12.1.0-devel-ubuntu22.04"
+python_version = "3.10"
+cuda_version = "12.1"
+
+[build.system_setup]
+apt_packages = [
+    "python3.10",
+    "python3.10-dev", 
+    "python3.10-distutils",
+    "python3-pip",
+    "git",
+    "git-lfs",
+    "wget",
+    "curl",
+    "ffmpeg",
+    "build-essential",
+    "libsndfile1",
+    "libsndfile1-dev",
+    "libportaudio2",
+    "portaudio19-dev",
+    "sox",
+    "libsox-dev",
+    "libsox-fmt-all",
+    "cmake",
+    "ninja-build",
+    "pkg-config",
+    "libffi-dev",
+    "libssl-dev",
+    "libjpeg-dev",
+    "libpng-dev",
+    "zlib1g-dev",
+    "libtiff5-dev",
+    "libfreetype6-dev",
+    "liblcms2-dev",
+    "libwebp-dev",
+    "libharfbuzz-dev",
+    "libfribidi-dev",
+    "libxcb1-dev",
+    "espeak",
+    "espeak-data",
+    "libespeak-dev"
+]
+
+[build.python_packages]
+torch = "2.3.0"
+torchvision = "0.18.0"
+torchaudio = "2.3.0"
+transformers = "4.44.0"
+diffusers = "0.30.0"
+accelerate = "0.33.0"
+runpod = "1.6.0"
+fastapi = "0.111.0"
+uvicorn = "0.30.0"
+
+[runtime]
+handler = "runpod_handler.py"
+python_version = "3.10"
+gpu_types = ["NVIDIA RTX A6000", "NVIDIA A100-SXM4-40GB", "NVIDIA A100-SXM4-80GB"]
+
+[runtime.scaling]
+min_workers = 0
+max_workers = 3
+idle_timeout = 600
+scale_type = "QUEUE_DELAY"
+scale_value = 30
+
+[runtime.resources]
+container_disk_gb = 50
+volume_gb = 100
+volume_mount_path = "/models"
