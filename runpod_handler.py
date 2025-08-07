@@ -4,7 +4,7 @@ RunPod Serverless Handler - Production Ready
 August 2025 Edition
 """
 
-import runpod
+import runpod  # Required for RunPod serverless
 import asyncio
 import logging
 import json
@@ -456,25 +456,25 @@ async def process_batch_scenes(job_input: Dict) -> Dict:
         logger.error(f"Batch processing failed: {e}")
         return {"error": f"Batch processing failed: {str(e)}"}
 
-def handler(job):
-    """RunPod handler function"""
+def handler(event):
+    """RunPod serverless handler function"""
     try:
-        # Get job input
-        job_input = job.get("input", {})
-        job_id = job.get("id", "unknown")
+        # Extract input data from the request (RunPod serverless pattern)
+        input_data = event["input"]
+        job_id = event.get("id", "unknown")
 
         logger.info(f"🎯 Job {job_id} started")
-        logger.info(f"Type: {job_input.get('type', 'unknown')}")
+        logger.info(f"Type: {input_data.get('type', 'unknown')}")
 
         # Check if pipeline is initialized
-        if not pipeline and job_input.get('type') != 'health_check':
+        if not pipeline and input_data.get('type') != 'health_check':
             return {
                 "status": "error",
                 "error": "Pipeline not initialized - check dependencies and Docker environment"
             }
 
-        # Process job
-        result = asyncio.run(process_job(job_input))
+        # Process job (replace this with your own code)
+        result = asyncio.run(process_job(input_data))
 
         # Cleanup resources after processing
         try:
@@ -486,6 +486,7 @@ def handler(job):
 
         logger.info(f"✅ Job {job_id} completed successfully")
 
+        # Return the result (RunPod serverless pattern)
         return result
 
     except Exception as e:
@@ -507,5 +508,5 @@ if __name__ == "__main__":
     if pipeline:
         logger.info(f"Pipeline mode: {pipeline.mode}")
     
-    # Start the serverless worker
-    runpod.serverless.start({"handler": handler})
+    # Start the serverless worker (Required for RunPod)
+    runpod.serverless.start({"handler": handler})  # Required
