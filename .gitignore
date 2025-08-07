@@ -119,6 +119,9 @@ dmypy.json
 runpod_logs/
 *.runpod
 
+# But include .runpod configuration directory for serverless
+!.runpod/
+
 # Large files
 *.zip
 *.tar.gz

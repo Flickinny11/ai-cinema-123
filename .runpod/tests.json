@@ -1,0 +1,101 @@
+{
+  "tests": [
+    {
+      "name": "health_check",
+      "input": {
+        "type": "health_check"
+      },
+      "timeout": 30000
+    },
+    {
+      "name": "simple_scene_generation",
+      "input": {
+        "type": "single_scene",
+        "scene": {
+          "id": "test-001",
+          "description": "A robot walks through a futuristic city at night, neon lights reflecting off wet streets",
+          "duration": 5,
+          "resolution": "720p",
+          "fps": 30,
+          "camera_movements": ["tracking shot", "slow zoom"],
+          "sound_effects": ["footsteps", "city ambience", "rain"],
+          "music_mood": "cyberpunk ambient"
+        }
+      },
+      "timeout": 120000
+    },
+    {
+      "name": "dialogue_with_human_sounds",
+      "input": {
+        "type": "single_scene",
+        "scene": {
+          "id": "test-002",
+          "description": "Two friends having coffee, one tells a funny story",
+          "duration": 8,
+          "dialogue": [
+            {
+              "character": "Alex",
+              "text": "You won't believe what happened yesterday!",
+              "emotion": "excited"
+            },
+            {
+              "character": "Sam",
+              "text": "Oh no, what did you do this time?",
+              "emotion": "amused"
+            }
+          ],
+          "human_sounds": ["laughter", "sigh"],
+          "environment": "Coffee shop"
+        },
+        "options": {
+          "enable_human_sounds": true
+        }
+      },
+      "timeout": 180000
+    },
+    {
+      "name": "script_processing",
+      "input": {
+        "type": "script_to_video",
+        "script": "FADE IN:\n\nINT. SPACESHIP BRIDGE - DAY\n\nCAPTAIN REYNOLDS (40s, weathered) stands at the helm.\n\nREYNOLDS\n(determined)\nSet course for the asteroid field.\n\nFADE OUT.",
+        "options": {
+          "resolution": "720p",
+          "max_scene_duration": 10
+        }
+      },
+      "timeout": 300000
+    }
+  ],
+  "config": {
+    "gpuTypeId": "NVIDIA A100-SXM4-80GB",
+    "gpuCount": 1,
+    "env": [
+      {
+        "key": "MODEL_QUALITY",
+        "value": "balanced"
+      },
+      {
+        "key": "PARALLEL_PROCESSING",
+        "value": "true"
+      },
+      {
+        "key": "MAX_VIDEO_DURATION",
+        "value": "30"
+      },
+      {
+        "key": "ENABLE_HUMAN_SOUNDS",
+        "value": "true"
+      }
+    ],
+    "allowedCudaVersions": [
+      "12.7",
+      "12.6",
+      "12.5",
+      "12.4",
+      "12.3",
+      "12.2",
+      "12.1",
+      "12.0"
+    ]
+  }
+}

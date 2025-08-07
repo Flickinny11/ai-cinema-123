@@ -1,0 +1,102 @@
+{
+  "title": "Cinema AI Production Pipeline v2.0",
+  "description": "Cinema-quality AI video generation with HunyuanVideo, LTX-Video, MusicGen, AudioGen, XTTS-v2, and DeepSeek v3 script processing. Creates videos with realistic facial expressions, emotions, dialogue, sound effects, and non-verbal human sounds.",
+  "type": "serverless",
+  "category": "video",
+  "iconUrl": "https://raw.githubusercontent.com/Flickinny11/ai-cinema-test-1/main/.runpod/icon.png",
+  "config": {
+    "runsOn": "GPU",
+    "containerDiskInGb": 350,
+    "presets": [
+      {
+        "name": "Cinema Quality",
+        "defaults": {
+          "MODEL_QUALITY": "cinema",
+          "PARALLEL_PROCESSING": "true",
+          "MAX_VIDEO_DURATION": "60",
+          "ENABLE_HUMAN_SOUNDS": "true"
+        }
+      },
+      {
+        "name": "Balanced Performance",
+        "defaults": {
+          "MODEL_QUALITY": "balanced",
+          "PARALLEL_PROCESSING": "true",
+          "MAX_VIDEO_DURATION": "30",
+          "ENABLE_HUMAN_SOUNDS": "true"
+        }
+      },
+      {
+        "name": "Fast Generation",
+        "defaults": {
+          "MODEL_QUALITY": "fast",
+          "PARALLEL_PROCESSING": "false",
+          "MAX_VIDEO_DURATION": "15",
+          "ENABLE_HUMAN_SOUNDS": "false"
+        }
+      }
+    ],
+    "env": [
+      {
+        "key": "HF_HOME",
+        "value": "/models/cache"
+      },
+      {
+        "key": "PYTORCH_CUDA_ALLOC_CONF",
+        "value": "max_split_size_mb:512"
+      },
+      {
+        "key": "TORCH_BACKENDS_CUDNN_BENCHMARK",
+        "value": "1"
+      },
+      {
+        "key": "MODEL_QUALITY",
+        "input": {
+          "name": "Model Quality",
+          "type": "select",
+          "description": "Video generation quality level",
+          "options": ["cinema", "balanced", "fast"],
+          "default": "balanced"
+        }
+      },
+      {
+        "key": "PARALLEL_PROCESSING",
+        "input": {
+          "name": "Parallel Processing",
+          "type": "boolean",
+          "description": "Enable parallel video/audio generation for faster processing",
+          "default": true
+        }
+      },
+      {
+        "key": "MAX_VIDEO_DURATION",
+        "input": {
+          "name": "Max Video Duration (seconds)",
+          "type": "number",
+          "description": "Maximum video duration in seconds",
+          "default": 30,
+          "min": 5,
+          "max": 60
+        }
+      },
+      {
+        "key": "ENABLE_HUMAN_SOUNDS",
+        "input": {
+          "name": "Enable Human Sounds",
+          "type": "boolean",
+          "description": "Enable non-verbal human sound generation (laughs, sighs, etc.)",
+          "default": true
+        }
+      },
+      {
+        "key": "DEEPSEEK_API_KEY",
+        "input": {
+          "name": "DeepSeek API Key",
+          "type": "password",
+          "description": "DeepSeek v3 API key for script processing (optional)",
+          "default": ""
+        }
+      }
+    ]
+  }
+}
