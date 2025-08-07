@@ -56,9 +56,18 @@ Complete pipeline for generating cinema-quality videos with:
 git clone https://github.com/Flickinny11/ai-cinema-test-1
 cd ai-cinema-test-1
 
-# Deploy to RunPod
-python deploy_to_runpod.py
+# Deploy to RunPod Serverless
+# The repository is pre-configured for RunPod serverless deployment
+# Simply create a new serverless endpoint using this repository
 ```
+
+### ✅ RunPod Serverless Ready
+- **Handler Function**: `runpod_handler.py` with proper serverless structure
+- **Global Model Loading**: Models initialized once per worker (not per request)
+- **Health Check**: Built-in health monitoring for worker status
+- **Error Handling**: Robust error handling with proper JSON responses
+- **Environment Variables**: Pre-configured for optimal GPU performance
+- **Docker Optimized**: Efficient Dockerfile with proper layer caching
 
 ## 🎯 API Usage
 

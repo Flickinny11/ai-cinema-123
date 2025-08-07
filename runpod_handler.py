@@ -5,7 +5,6 @@ August 2025 Edition
 """
 
 import runpod
-import torch
 import asyncio
 import logging
 import json
@@ -13,148 +12,192 @@ import traceback
 import os
 import time
 from typing import Dict, List, Optional
-from cinema_pipeline import CinemaPipeline, Scene, cleanup
-from dataclasses import field
 
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Global pipeline instance
+# Global pipeline instance - initialized once when worker starts
 pipeline = None
 
-def initialize():
-    """Initialize pipeline on cold start"""
+def initialize_pipeline():
+    """Initialize pipeline on worker startup"""
     global pipeline
-    if pipeline is None:
+    
+    logger.info("="*60)
+    logger.info("🎬 Cinema AI Production Pipeline v2.0")
+    logger.info("="*60)
+    
+    try:
+        # Import here to handle missing dependencies gracefully
+        import torch
+        from cinema_pipeline import CinemaPipeline, Scene, cleanup
+        
+        logger.info(f"PyTorch: {torch.__version__}")
+        logger.info(f"CUDA Available: {torch.cuda.is_available()}")
+
+        if torch.cuda.is_available():
+            logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
+            vram = torch.cuda.get_device_properties(0).total_memory / 1024**3
+            logger.info(f"VRAM: {vram:.1f}GB")
+
+            # Log model capabilities based on VRAM
+            if vram >= 80:
+                logger.info("✅ Full Cinema Mode: All models enabled")
+                logger.info("  • HunyuanVideo (13B) - Cinema quality")
+                logger.info("  • LTX-Video (13B) - Real-time generation")
+                logger.info("  • MusicGen-Large - Orchestral music")
+                logger.info("  • AudioGen-Medium - Sound effects")
+                logger.info("  • XTTS-v2 - Voice cloning")
+            elif vram >= 40:
+                logger.info("⚡ Balanced Mode: Optimized models")
+                logger.info("  • LTX-Video (13B) - Fast generation")
+                logger.info("  • MusicGen-Medium - Music generation")
+                logger.info("  • XTTS-v2 - Voice cloning")
+            else:
+                logger.info("🚀 Fast Mode: Consumer GPU optimized")
+                logger.info("  • LTX-Video (Quantized) - Quick generation")
+                logger.info("  • Basic audio models")
+        else:
+            logger.warning("No GPU detected - running in CPU mode (very slow)")
+
         logger.info("="*60)
-        logger.info("🎬 Cinema AI Production Pipeline v2.0")
+        logger.info("Initializing pipeline...")
+
+        pipeline = CinemaPipeline()
+
+        logger.info("✅ Pipeline ready for production!")
         logger.info("="*60)
         
-        try:
-            logger.info(f"PyTorch: {torch.__version__}")
-            logger.info(f"CUDA Available: {torch.cuda.is_available()}")
-
-            if torch.cuda.is_available():
-                logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
-                vram = torch.cuda.get_device_properties(0).total_memory / 1024**3
-                logger.info(f"VRAM: {vram:.1f}GB")
-
-                # Log model capabilities based on VRAM
-                if vram >= 80:
-                    logger.info("✅ Full Cinema Mode: All models enabled")
-                    logger.info("  • HunyuanVideo (13B) - Cinema quality")
-                    logger.info("  • LTX-Video (13B) - Real-time generation")
-                    logger.info("  • MusicGen-Large - Orchestral music")
-                    logger.info("  • AudioGen-Medium - Sound effects")
-                    logger.info("  • XTTS-v2 - Voice cloning")
-                elif vram >= 40:
-                    logger.info("⚡ Balanced Mode: Optimized models")
-                    logger.info("  • LTX-Video (13B) - Fast generation")
-                    logger.info("  • MusicGen-Medium - Music generation")
-                    logger.info("  • XTTS-v2 - Voice cloning")
-                else:
-                    logger.info("🚀 Fast Mode: Consumer GPU optimized")
-                    logger.info("  • LTX-Video (Quantized) - Quick generation")
-                    logger.info("  • Basic audio models")
-            else:
-                logger.warning("No GPU detected - running in CPU mode (very slow)")
-
-            logger.info("="*60)
-            logger.info("Initializing pipeline...")
-
-            pipeline = CinemaPipeline()
-
-            logger.info("✅ Pipeline ready for production!")
-            logger.info("="*60)
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize pipeline: {e}")
-            logger.error(traceback.format_exc())
-            # Create a minimal pipeline for basic functionality
-            pipeline = None
-            raise RuntimeError(f"Pipeline initialization failed: {e}")
+    except ImportError as e:
+        logger.error(f"Missing dependencies: {e}")
+        logger.error("Running in minimal mode - some features disabled")
+        pipeline = None
+    except Exception as e:
+        logger.error(f"Failed to initialize pipeline: {e}")
+        logger.error(traceback.format_exc())
+        pipeline = None
+        
+# Initialize pipeline when module loads (RunPod best practice)
+try:
+    # Set environment variables for optimal performance
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "max_split_size_mb:512")
+    os.environ.setdefault("CUDA_LAUNCH_BLOCKING", "0")
+    os.environ.setdefault("HF_HOME", "/models/cache")
+    os.environ.setdefault("DIFFUSERS_CACHE", "/models/diffusers")
+    os.environ.setdefault("AUDIOCRAFT_CACHE_DIR", "/models/audiocraft")
+    
+    # Enable HF Transfer for faster downloads
+    os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
+    
+    initialize_pipeline()
+except Exception as e:
+    logger.error(f"Pipeline initialization failed: {e}")
+    pipeline = None
 
 async def process_script(job_input: Dict) -> Dict:
     """Process a full script into multiple scenes"""
+    if not pipeline:
+        return {"error": "Pipeline not initialized - check dependencies"}
+        
     script = job_input.get("script", "")
     if not script:
         return {"error": "No script provided"}
 
     options = job_input.get("options", {})
 
-    # Use DeepSeek to process script
-    processed = await pipeline.process_script(script, options)
-    scenes = processed['scenes']
+    try:
+        # Use DeepSeek to process script
+        processed = await pipeline.process_script(script, options)
+        scenes = processed['scenes']
 
-    logger.info(f"📽️ Processing {len(scenes)} scenes from script")
+        logger.info(f"📽️ Processing {len(scenes)} scenes from script")
 
-    results = []
-    total_start = time.time()
+        results = []
+        total_start = time.time()
 
-    for i, scene in enumerate(scenes):
-        logger.info(f"Scene {i+1}/{len(scenes)}: {scene.id}")
-        scene_start = time.time()
+        for i, scene in enumerate(scenes):
+            logger.info(f"Scene {i+1}/{len(scenes)}: {scene.id}")
+            scene_start = time.time()
 
-        try:
-            result = await pipeline.process_complete_scene(scene)
-            result["scene_number"] = i + 1
-            result["scene_time"] = time.time() - scene_start
-            results.append(result)
+            try:
+                result = await pipeline.process_complete_scene(scene)
+                result["scene_number"] = i + 1
+                result["scene_time"] = time.time() - scene_start
+                results.append(result)
 
-            # Log progress
-            logger.info(f"  ✅ Scene {i+1} completed in {result['scene_time']:.1f}s")
+                # Log progress
+                logger.info(f"  ✅ Scene {i+1} completed in {result['scene_time']:.1f}s")
 
-        except Exception as e:
-            logger.error(f"  ❌ Scene {i+1} failed: {e}")
-            results.append({
-                "scene_id": scene.id,
-                "scene_number": i + 1,
-                "error": str(e)
-            })
+            except Exception as e:
+                logger.error(f"  ❌ Scene {i+1} failed: {e}")
+                results.append({
+                    "scene_id": scene.id,
+                    "scene_number": i + 1,
+                    "error": str(e)
+                })
 
-    total_time = time.time() - total_start
+        total_time = time.time() - total_start
 
-    return {
-        "status": "success",
-        "scenes": results,
-        "total_scenes": len(scenes),
-        "total_processing_time": total_time,
-        "average_scene_time": total_time / len(scenes) if scenes else 0,
-        "metadata": processed.get('metadata', {})
-    }
+        return {
+            "status": "success",
+            "scenes": results,
+            "total_scenes": len(scenes),
+            "total_processing_time": total_time,
+            "average_scene_time": total_time / len(scenes) if scenes else 0,
+            "metadata": processed.get('metadata', {})
+        }
+    except Exception as e:
+        logger.error(f"Script processing failed: {e}")
+        return {"error": f"Script processing failed: {str(e)}"}
 
 async def process_single_scene(job_input: Dict) -> Dict:
     """Process a single scene"""
+    if not pipeline:
+        return {"error": "Pipeline not initialized - check dependencies"}
+        
     scene_data = job_input.get("scene", {})
 
-    # Create Scene object from input
-    scene = Scene(
-        id=scene_data.get("id", f"scene_{int(time.time())}"),
-        description=scene_data.get("description", ""),
-        duration=scene_data.get("duration", 5),
-        resolution=scene_data.get("resolution", "720p"),
-        fps=scene_data.get("fps", 30),
-        characters=scene_data.get("characters", []),
-        dialogue=scene_data.get("dialogue", []),
-        environment=scene_data.get("environment", ""),
-        camera_movements=scene_data.get("camera_movements", []),
-        sound_effects=scene_data.get("sound_effects", []),
-        music_mood=scene_data.get("music_mood", ""),
-        emotion_expressions=scene_data.get("emotion_expressions", []),
-        voice_clone_samples=scene_data.get("voice_clone_samples", [])
-    )
+    try:
+        # Import Scene class here to handle missing dependencies
+        from cinema_pipeline import Scene
+        
+        # Create Scene object from input
+        scene = Scene(
+            id=scene_data.get("id", f"scene_{int(time.time())}"),
+            description=scene_data.get("description", ""),
+            duration=scene_data.get("duration", 5),
+            resolution=scene_data.get("resolution", "720p"),
+            fps=scene_data.get("fps", 30),
+            characters=scene_data.get("characters", []),
+            dialogue=scene_data.get("dialogue", []),
+            environment=scene_data.get("environment", ""),
+            camera_movements=scene_data.get("camera_movements", []),
+            sound_effects=scene_data.get("sound_effects", []),
+            music_mood=scene_data.get("music_mood", ""),
+            emotion_expressions=scene_data.get("emotion_expressions", []),
+            voice_clone_samples=scene_data.get("voice_clone_samples", [])
+        )
 
-    logger.info(f"🎬 Processing single scene: {scene.id}")
+        logger.info(f"🎬 Processing single scene: {scene.id}")
 
-    result = await pipeline.process_complete_scene(scene)
+        result = await pipeline.process_complete_scene(scene)
 
-    return {
-        "status": "success",
-        **result
-    }
+        return {
+            "status": "success",
+            **result
+        }
+    except Exception as e:
+        logger.error(f"Single scene processing failed: {e}")
+        return {"error": f"Single scene processing failed: {str(e)}"}
 
-def parse_script_to_scenes(script: str, options: Dict) -> List[Scene]:
+def parse_script_to_scenes(script: str, options: Dict) -> List:
     """Parse script text into Scene objects"""
+    try:
+        from cinema_pipeline import Scene
+    except ImportError:
+        return []
+        
     scenes = []
 
     # Advanced parsing options
@@ -239,45 +282,55 @@ async def process_job(job_input: Dict) -> Dict:
 
         elif request_type == "health_check":
             # Comprehensive health check
-            health_status = {
-                "status": "healthy",
-                "timestamp": time.time(),
-                "system": {
-                    "gpu_available": torch.cuda.is_available(),
-                    "device_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
-                    "memory_allocated": torch.cuda.memory_allocated() / 1024**3 if torch.cuda.is_available() else 0,
-                    "memory_cached": torch.cuda.memory_cached() / 1024**3 if torch.cuda.is_available() else 0
-                },
-                "pipeline": {
-                    "initialized": pipeline is not None,
-                    "mode": pipeline.mode if pipeline else "not_initialized",
-                    "models_loaded": list(pipeline.models.keys()) if pipeline else [],
-                    "script_processor_available": pipeline and pipeline.script_processor is not None,
-                    "human_sounds_available": pipeline and pipeline.human_sounds is not None
+            try:
+                import torch
+                
+                health_status = {
+                    "status": "healthy",
+                    "timestamp": time.time(),
+                    "system": {
+                        "gpu_available": torch.cuda.is_available() if 'torch' in locals() else False,
+                        "device_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
+                        "memory_allocated": torch.cuda.memory_allocated() / 1024**3 if torch.cuda.is_available() else 0,
+                        "memory_cached": torch.cuda.memory_cached() / 1024**3 if torch.cuda.is_available() else 0
+                    },
+                    "pipeline": {
+                        "initialized": pipeline is not None,
+                        "mode": pipeline.mode if pipeline else "not_initialized",
+                        "models_loaded": list(pipeline.models.keys()) if pipeline else [],
+                        "script_processor_available": pipeline and hasattr(pipeline, 'script_processor') and pipeline.script_processor is not None,
+                        "human_sounds_available": pipeline and hasattr(pipeline, 'human_sounds') and pipeline.human_sounds is not None
+                    }
                 }
-            }
-            
-            if torch.cuda.is_available():
-                health_status["gpu"] = {
-                    "name": torch.cuda.get_device_name(0),
-                    "vram_total_gb": torch.cuda.get_device_properties(0).total_memory / 1024**3,
-                    "vram_used_gb": torch.cuda.memory_allocated() / 1024**3,
-                    "vram_free_gb": (torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated()) / 1024**3
+                
+                if torch.cuda.is_available():
+                    health_status["gpu"] = {
+                        "name": torch.cuda.get_device_name(0),
+                        "vram_total_gb": torch.cuda.get_device_properties(0).total_memory / 1024**3,
+                        "vram_used_gb": torch.cuda.memory_allocated() / 1024**3,
+                        "vram_free_gb": (torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated()) / 1024**3
+                    }
+                
+                if pipeline:
+                    health_status["capabilities"] = {
+                        "video_generation": "hunyuan" in pipeline.models or "ltx" in pipeline.models,
+                        "music_generation": "musicgen" in pipeline.models,
+                        "sound_effects": "audiogen" in pipeline.models,
+                        "voice_cloning": "tts" in pipeline.models,
+                        "script_processing": hasattr(pipeline, 'script_processor') and pipeline.script_processor is not None,
+                        "human_sounds": hasattr(pipeline, 'human_sounds') and pipeline.human_sounds is not None,
+                        "max_duration": 60 if pipeline.mode == "cinema" else 30 if pipeline.mode == "balanced" else 15,
+                        "max_resolution": "4k" if pipeline.mode == "cinema" else "1080p" if pipeline.mode == "balanced" else "720p"
+                    }
+                
+                return health_status
+            except Exception as e:
+                return {
+                    "status": "unhealthy",
+                    "timestamp": time.time(),
+                    "error": str(e),
+                    "pipeline_initialized": pipeline is not None
                 }
-            
-            if pipeline:
-                health_status["capabilities"] = {
-                    "video_generation": "hunyuan" in pipeline.models or "ltx" in pipeline.models,
-                    "music_generation": "musicgen" in pipeline.models,
-                    "sound_effects": "audiogen" in pipeline.models,
-                    "voice_cloning": "tts" in pipeline.models,
-                    "script_processing": pipeline.script_processor is not None,
-                    "human_sounds": pipeline.human_sounds is not None,
-                    "max_duration": 60 if pipeline.mode == "cinema" else 30 if pipeline.mode == "balanced" else 15,
-                    "max_resolution": "4k" if pipeline.mode == "cinema" else "1080p" if pipeline.mode == "balanced" else "720p"
-                }
-            
-            return health_status
 
         elif request_type == "list_models":
             return {
@@ -305,6 +358,9 @@ async def process_job(job_input: Dict) -> Dict:
 
 async def process_concept(job_input: Dict) -> Dict:
     """Process a concept into a full script and videos"""
+    if not pipeline:
+        return {"error": "Pipeline not initialized - check dependencies"}
+        
     concept = job_input.get("concept", "")
     if not concept:
         return {"error": "No concept provided"}
@@ -313,85 +369,96 @@ async def process_concept(job_input: Dict) -> Dict:
 
     logger.info(f"🎬 Developing concept: {concept[:100]}...")
 
-    # Develop concept into script
-    result = await pipeline.develop_concept(concept, options)
+    try:
+        # Develop concept into script
+        result = await pipeline.develop_concept(concept, options)
 
-    # Process scenes into videos if requested
-    if options.get("generate_videos", True) and "processed_scenes" in result:
-        scenes = result["processed_scenes"]
+        # Process scenes into videos if requested
+        if options.get("generate_videos", True) and "processed_scenes" in result:
+            scenes = result["processed_scenes"]
 
-        logger.info(f"📽️ Generating {len(scenes)} videos from concept")
+            logger.info(f"📽️ Generating {len(scenes)} videos from concept")
 
-        video_results = []
-        for scene in scenes:
-            try:
-                scene_result = await pipeline.process_complete_scene(scene)
-                video_results.append(scene_result)
-            except Exception as e:
-                logger.error(f"Failed to generate video for scene: {e}")
-                video_results.append({"error": str(e)})
+            video_results = []
+            for scene in scenes:
+                try:
+                    scene_result = await pipeline.process_complete_scene(scene)
+                    video_results.append(scene_result)
+                except Exception as e:
+                    logger.error(f"Failed to generate video for scene: {e}")
+                    video_results.append({"error": str(e)})
 
-        result["videos"] = video_results
+            result["videos"] = video_results
 
-    return {
-        "status": "success",
-        "concept": concept,
-        "script": result.get("script_text", ""),
-        "scenes": result.get("processed_scenes", []),
-        "videos": result.get("videos", []),
-        "metadata": result.get("metadata", {})
-    }
+        return {
+            "status": "success",
+            "concept": concept,
+            "script": result.get("script_text", ""),
+            "scenes": result.get("processed_scenes", []),
+            "videos": result.get("videos", []),
+            "metadata": result.get("metadata", {})
+        }
+    except Exception as e:
+        logger.error(f"Concept processing failed: {e}")
+        return {"error": f"Concept processing failed: {str(e)}"}
 
 async def process_batch_scenes(job_input: Dict) -> Dict:
     """Process multiple scenes in batch"""
+    if not pipeline:
+        return {"error": "Pipeline not initialized - check dependencies"}
+        
     scenes_data = job_input.get("scenes", [])
     if not scenes_data:
         return {"error": "No scenes provided"}
 
     logger.info(f"📽️ Processing batch of {len(scenes_data)} scenes")
 
-    results = []
-    for scene_data in scenes_data:
-        # Create Scene object
-        scene = Scene(
-            id=scene_data.get("id", f"batch_{int(time.time())}"),
-            description=scene_data.get("description", ""),
-            duration=scene_data.get("duration", 10),
-            resolution=scene_data.get("resolution", "720p"),
-            fps=scene_data.get("fps", 30),
-            characters=scene_data.get("characters", []),
-            dialogue=scene_data.get("dialogue", []),
-            environment=scene_data.get("environment", ""),
-            camera_movements=scene_data.get("camera_movements", []),
-            sound_effects=scene_data.get("sound_effects", []),
-            music_mood=scene_data.get("music_mood", ""),
-            emotion_expressions=scene_data.get("emotion_expressions", []),
-            voice_clone_samples=scene_data.get("voice_clone_samples", [])
-        )
+    try:
+        # Import Scene class here to handle missing dependencies
+        from cinema_pipeline import Scene
+        
+        results = []
+        for scene_data in scenes_data:
+            # Create Scene object
+            scene = Scene(
+                id=scene_data.get("id", f"batch_{int(time.time())}"),
+                description=scene_data.get("description", ""),
+                duration=scene_data.get("duration", 10),
+                resolution=scene_data.get("resolution", "720p"),
+                fps=scene_data.get("fps", 30),
+                characters=scene_data.get("characters", []),
+                dialogue=scene_data.get("dialogue", []),
+                environment=scene_data.get("environment", ""),
+                camera_movements=scene_data.get("camera_movements", []),
+                sound_effects=scene_data.get("sound_effects", []),
+                music_mood=scene_data.get("music_mood", ""),
+                emotion_expressions=scene_data.get("emotion_expressions", []),
+                voice_clone_samples=scene_data.get("voice_clone_samples", [])
+            )
 
-        # Add human sounds if specified
-        if "human_sounds" in scene_data:
-            scene.human_sounds = scene_data["human_sounds"]
+            # Add human sounds if specified
+            if "human_sounds" in scene_data:
+                scene.human_sounds = scene_data["human_sounds"]
 
-        try:
-            result = await pipeline.process_complete_scene(scene)
-            results.append(result)
-        except Exception as e:
-            logger.error(f"Failed to process scene {scene.id}: {e}")
-            results.append({"scene_id": scene.id, "error": str(e)})
+            try:
+                result = await pipeline.process_complete_scene(scene)
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Failed to process scene {scene.id}: {e}")
+                results.append({"scene_id": scene.id, "error": str(e)})
 
-    return {
-        "status": "success",
-        "videos": results,
-        "total_scenes": len(scenes_data)
-    }
+        return {
+            "status": "success",
+            "videos": results,
+            "total_scenes": len(scenes_data)
+        }
+    except Exception as e:
+        logger.error(f"Batch processing failed: {e}")
+        return {"error": f"Batch processing failed: {str(e)}"}
 
 def handler(job):
     """RunPod handler function"""
     try:
-        # Initialize pipeline
-        initialize()
-
         # Get job input
         job_input = job.get("input", {})
         job_id = job.get("id", "unknown")
@@ -399,11 +466,23 @@ def handler(job):
         logger.info(f"🎯 Job {job_id} started")
         logger.info(f"Type: {job_input.get('type', 'unknown')}")
 
+        # Check if pipeline is initialized
+        if not pipeline and job_input.get('type') != 'health_check':
+            return {
+                "status": "error",
+                "error": "Pipeline not initialized - check dependencies and Docker environment"
+            }
+
         # Process job
         result = asyncio.run(process_job(job_input))
 
-        # Cleanup resources
-        cleanup()
+        # Cleanup resources after processing
+        try:
+            from cinema_pipeline import cleanup
+            cleanup()
+        except ImportError:
+            # Cleanup function not available
+            pass
 
         logger.info(f"✅ Job {job_id} completed successfully")
 
@@ -422,10 +501,11 @@ if __name__ == "__main__":
     logger.info("🚀 Starting RunPod Cinema AI Worker")
     logger.info("Version: 2.0 - August 2025 Edition")
     logger.info("Models: HunyuanVideo, LTX-Video, MusicGen, AudioGen, XTTS-v2")
-
-    # Set environment variables for optimal performance
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
-    os.environ["CUDA_LAUNCH_BLOCKING"] = "0"
-
+    
+    # Log configuration
+    logger.info(f"Pipeline initialized: {pipeline is not None}")
+    if pipeline:
+        logger.info(f"Pipeline mode: {pipeline.mode}")
+    
     # Start the serverless worker
     runpod.serverless.start({"handler": handler})
