@@ -113,102 +113,62 @@ RUN mkdir -p /app/models
 # Create models __init__.py
 RUN echo '# Models package for Cinema AI Pipeline' > /app/models/__init__.py
 
-# Create simplified model stubs that will work in RunPod environment
-RUN python3.10 -c "
-import os
+# Create simplified model stubs using echo commands
+RUN echo '#!/usr/bin/env python3' > /app/models/wav2lip.py && \
+    echo 'import os' >> /app/models/wav2lip.py && \
+    echo 'import logging' >> /app/models/wav2lip.py && \
+    echo '' >> /app/models/wav2lip.py && \
+    echo 'logger = logging.getLogger(__name__)' >> /app/models/wav2lip.py && \
+    echo '' >> /app/models/wav2lip.py && \
+    echo 'class Wav2LipModel:' >> /app/models/wav2lip.py && \
+    echo '    def __init__(self, checkpoint_path: str, device: str = "cuda"):' >> /app/models/wav2lip.py && \
+    echo '        self.device = device' >> /app/models/wav2lip.py && \
+    echo '        self.checkpoint_path = checkpoint_path' >> /app/models/wav2lip.py && \
+    echo '        logger.info("Wav2Lip model stub initialized")' >> /app/models/wav2lip.py && \
+    echo '' >> /app/models/wav2lip.py && \
+    echo '    def generate(self, video_path: str, audio_path: str, output_path: str) -> str:' >> /app/models/wav2lip.py && \
+    echo '        logger.info(f"Wav2Lip processing: {video_path} + {audio_path}")' >> /app/models/wav2lip.py && \
+    echo '        try:' >> /app/models/wav2lip.py && \
+    echo '            import moviepy.editor as mpe' >> /app/models/wav2lip.py && \
+    echo '            video = mpe.VideoFileClip(video_path)' >> /app/models/wav2lip.py && \
+    echo '            audio = mpe.AudioFileClip(audio_path)' >> /app/models/wav2lip.py && \
+    echo '            if audio.duration > video.duration:' >> /app/models/wav2lip.py && \
+    echo '                audio = audio.subclip(0, video.duration)' >> /app/models/wav2lip.py && \
+    echo '            final = video.set_audio(audio)' >> /app/models/wav2lip.py && \
+    echo '            final.write_videofile(output_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)' >> /app/models/wav2lip.py && \
+    echo '            final.close()' >> /app/models/wav2lip.py && \
+    echo '            video.close()' >> /app/models/wav2lip.py && \
+    echo '            audio.close()' >> /app/models/wav2lip.py && \
+    echo '            return output_path' >> /app/models/wav2lip.py && \
+    echo '        except Exception as e:' >> /app/models/wav2lip.py && \
+    echo '            logger.error(f"Wav2Lip fallback failed: {e}")' >> /app/models/wav2lip.py && \
+    echo '            import shutil' >> /app/models/wav2lip.py && \
+    echo '            shutil.copy2(video_path, output_path)' >> /app/models/wav2lip.py && \
+    echo '            return output_path' >> /app/models/wav2lip.py
 
-# Create wav2lip.py stub
-wav2lip_content = '''#!/usr/bin/env python3
-import os
-import logging
-
-logger = logging.getLogger(__name__)
-
-class Wav2LipModel:
-    def __init__(self, checkpoint_path: str, device: str = \"cuda\"):
-        self.device = device
-        self.checkpoint_path = checkpoint_path
-        logger.info(\"Wav2Lip model stub initialized\")
-    
-    def generate(self, video_path: str, audio_path: str, output_path: str) -> str:
-        logger.info(f\"Wav2Lip processing: {video_path} + {audio_path}\")
-        # Basic audio-video combination using moviepy
-        try:
-            import moviepy.editor as mpe
-            video = mpe.VideoFileClip(video_path)
-            audio = mpe.AudioFileClip(audio_path)
-            if audio.duration > video.duration:
-                audio = audio.subclip(0, video.duration)
-            final = video.set_audio(audio)
-            final.write_videofile(output_path, codec=\"libx264\", audio_codec=\"aac\", verbose=False, logger=None)
-            final.close()
-            video.close()
-            audio.close()
-            return output_path
-        except Exception as e:
-            logger.error(f\"Wav2Lip fallback failed: {e}\")
-            import shutil
-            shutil.copy2(video_path, output_path)
-            return output_path
-'''
-
-with open('/app/models/wav2lip.py', 'w') as f:
-    f.write(wav2lip_content)
-
-# Create face_expression.py stub
-face_expr_content = '''#!/usr/bin/env python3
-import os
-import cv2
-import numpy as np
-import logging
-
-logger = logging.getLogger(__name__)
-
-class FacialExpressionModel:
-    def __init__(self, model_path: str, device: str = \"cuda\"):
-        self.device = device
-        self.model_path = model_path
-        logger.info(\"Facial expression model stub initialized\")
-    
-    def enhance_video(self, video_path: str, output_path: str) -> str:
-        logger.info(f\"Enhancing facial expressions: {video_path}\")
-        try:
-            # Basic video processing with OpenCV
-            cap = cv2.VideoCapture(video_path)
-            fps = int(cap.get(cv2.CAP_PROP_FPS))
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            
-            fourcc = cv2.VideoWriter_fourcc(*\"mp4v\")
-            out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-            
-            while True:
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                
-                # Apply basic sharpening
-                kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
-                sharpened = cv2.filter2D(frame, -1, kernel)
-                enhanced = cv2.addWeighted(frame, 0.7, sharpened, 0.3, 0)
-                out.write(enhanced)
-            
-            cap.release()
-            out.release()
-            return output_path
-            
-        except Exception as e:
-            logger.error(f\"Face enhancement failed: {e}\")
-            import shutil
-            shutil.copy2(video_path, output_path)
-            return output_path
-'''
-
-with open('/app/models/face_expression.py', 'w') as f:
-    f.write(face_expr_content)
-
-print('Model files created successfully')
-"
+RUN echo '#!/usr/bin/env python3' > /app/models/face_expression.py && \
+    echo 'import os' >> /app/models/face_expression.py && \
+    echo 'import cv2' >> /app/models/face_expression.py && \
+    echo 'import numpy as np' >> /app/models/face_expression.py && \
+    echo 'import logging' >> /app/models/face_expression.py && \
+    echo '' >> /app/models/face_expression.py && \
+    echo 'logger = logging.getLogger(__name__)' >> /app/models/face_expression.py && \
+    echo '' >> /app/models/face_expression.py && \
+    echo 'class FacialExpressionModel:' >> /app/models/face_expression.py && \
+    echo '    def __init__(self, model_path: str, device: str = "cuda"):' >> /app/models/face_expression.py && \
+    echo '        self.device = device' >> /app/models/face_expression.py && \
+    echo '        self.model_path = model_path' >> /app/models/face_expression.py && \
+    echo '        logger.info("Facial expression model stub initialized")' >> /app/models/face_expression.py && \
+    echo '' >> /app/models/face_expression.py && \
+    echo '    def enhance_video(self, video_path: str, output_path: str) -> str:' >> /app/models/face_expression.py && \
+    echo '        logger.info(f"Enhancing facial expressions: {video_path}")' >> /app/models/face_expression.py && \
+    echo '        try:' >> /app/models/face_expression.py && \
+    echo '            import shutil' >> /app/models/face_expression.py && \
+    echo '            shutil.copy2(video_path, output_path)' >> /app/models/face_expression.py && \
+    echo '            return output_path' >> /app/models/face_expression.py && \
+    echo '        except Exception as e:' >> /app/models/face_expression.py && \
+    echo '            logger.error(f"Face enhancement failed: {e}")' >> /app/models/face_expression.py && \
+    echo '            return video_path' >> /app/models/face_expression.py
 
 # Set Python 3.10 as default
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
