@@ -42,3 +42,4 @@ test.log
 # OS
 .DS_Store
 Thumbs.db
+.extension/

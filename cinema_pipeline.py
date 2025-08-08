@@ -21,7 +21,7 @@ try:
     import yaml
     from omegaconf import OmegaConf
 except ImportError as e:
-    logger.warning(f"Configuration libraries not available: {e}")
+    logging.warning(f"Configuration libraries not available: {e}")
     yaml = None
     OmegaConf = None
 
@@ -32,7 +32,7 @@ from concurrent.futures import ThreadPoolExecutor
 try:
     from einops import rearrange
 except ImportError:
-    logger.warning("einops not available - some operations may be limited")
+    logging.warning("einops not available - some operations may be limited")
     rearrange = None
 
 import warnings

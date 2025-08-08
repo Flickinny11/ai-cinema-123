@@ -1,0 +1,140 @@
+name: Docker Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Test Docker image
+      if: github.event_name == 'pull_request'
+      run: |
+        docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }} python3 -c "
+        import sys
+        sys.path.append('/app')
+        
+        # Test imports
+        try:
+            import torch
+            print(f'✅ PyTorch: {torch.__version__}')
+        except ImportError as e:
+            print(f'❌ PyTorch import failed: {e}')
+            sys.exit(1)
+            
+        try:
+            import transformers
+            print(f'✅ Transformers: {transformers.__version__}')
+        except ImportError as e:
+            print(f'❌ Transformers import failed: {e}')
+            sys.exit(1)
+            
+        try:
+            from runpod_handler_production import handler
+            print('✅ Handler import successful')
+        except ImportError as e:
+            print(f'❌ Handler import failed: {e}')
+            sys.exit(1)
+            
+        # Test handler
+        test_event = {'input': {'type': 'health_check'}, 'id': 'test'}
+        result = handler(test_event)
+        
+        if 'status' in result:
+            print(f'✅ Handler test passed: {result[\"status\"]}')
+        else:
+            print(f'❌ Handler test failed: {result}')
+            sys.exit(1)
+        "
+
+  runpod-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: build
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Validate RunPod Configuration
+      run: |
+        # Check required files exist
+        if [ ! -f ".runpod/hub.json" ]; then
+          echo "❌ Missing .runpod/hub.json"
+          exit 1
+        fi
+        
+        if [ ! -f ".runpod/tests.json" ]; then
+          echo "❌ Missing .runpod/tests.json"
+          exit 1
+        fi
+        
+        if [ ! -f "runpod_handler_production.py" ]; then
+          echo "❌ Missing runpod_handler_production.py"
+          exit 1
+        fi
+        
+        echo "✅ All RunPod files present"
+        
+        # Validate JSON syntax
+        python3 -m json.tool .runpod/hub.json > /dev/null
+        python3 -m json.tool .runpod/tests.json > /dev/null
+        
+        echo "✅ RunPod JSON files are valid"
+        
+        # Check handler function exists
+        python3 -c "
+        import sys
+        sys.path.append('.')
+        from runpod_handler_production import handler
+        print('✅ Handler function found')
+        "

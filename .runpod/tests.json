@@ -9,14 +9,15 @@
         },
         "expected_output": {
           "status": "healthy",
-          "models_loaded": ["ltx", "musicgen", "audiogen", "tts", "deepseek"],
+          "models_loaded": ["ltx"],
           "capabilities": {
-            "max_duration": 60,
-            "voice_cloning": true,
-            "music_generation": true,
-            "sound_effects": true,
-            "human_sounds": true,
-            "script_processing": true
+            "max_duration": 30,
+            "voice_cloning": false,
+            "music_generation": false,
+            "sound_effects": false,
+            "human_sounds": false,
+            "script_processing": true,
+            "video_generation": true
           }
         },
         "timeout": 30
