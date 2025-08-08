@@ -98,16 +98,15 @@ def download_model_from_hf(model_name: str, repo_id: str, cache_dir: str):
         return False
 
 def initialize_pipeline():
-    """Initialize pipeline on worker startup with robust error handling"""
+    """Initialize pipeline with fast cold start optimization"""
     global pipeline
     
     with pipeline_lock:
         if pipeline is not None:
             return pipeline
             
-        logger.info("="*60)
-        logger.info("🎬 Cinema AI Production Pipeline v2.1")
-        logger.info("="*60)
+        logger.info("🚀 Fast Cold Start - Cinema AI Pipeline v2.1")
+        start_time = time.time()
         
         try:
             # Setup volume access
@@ -158,17 +157,10 @@ def initialize_pipeline():
                 Path(path).mkdir(parents=True, exist_ok=True)
                 logger.info(f"📁 Created directory: {path}")
 
-            # Download essential models if not present
-            essential_models = [
-                ("ltx", "Lightricks/LTX-Video", model_dirs["ltx"]),
-                ("hunyuan", "tencent/HunyuanVideo", model_dirs["hunyuan"]),
-                ("musicgen", "facebook/musicgen-large", model_dirs["musicgen"]),
-                ("audiogen", "facebook/audiogen-medium", model_dirs["audiogen"])
-            ]
-            
-            logger.info("🔄 Checking/downloading essential models...")
-            for model_name, repo_id, cache_dir in essential_models:
-                download_model_from_hf(model_name, repo_id, cache_dir)
+            # Skip model downloads during cold start for speed
+            # Models will be downloaded on-demand when first used
+            logger.info("⚡ Skipping model downloads for fast cold start")
+            logger.info("📥 Models will download on first use")
 
             # Try to import and initialize cinema pipeline
             logger.info("🔄 Initializing cinema pipeline...")
@@ -177,10 +169,12 @@ def initialize_pipeline():
                 from cinema_pipeline import CinemaPipeline, Scene
                 logger.info("✅ Cinema pipeline modules imported")
                 
-                # Initialize the pipeline
+                # Initialize the pipeline (fast mode)
                 pipeline = CinemaPipeline()
-                logger.info("✅ Pipeline initialized successfully!")
-                logger.info("🎬 Ready for production video generation!")
+                
+                cold_start_time = time.time() - start_time
+                logger.info(f"✅ Pipeline initialized in {cold_start_time:.2f}s!")
+                logger.info("⚡ Fast cold start complete - models load on-demand")
                 
                 return pipeline
                 
@@ -296,19 +290,47 @@ class BasicPipeline:
         
         return scenes
     
-    def process_complete_scene(self, scene) -> Dict:
-        # Simulate processing
-        time.sleep(2)
+    async def process_complete_scene(self, scene) -> Dict:
+        """Process scene with speed optimization"""
+        start_time = time.time()
         
-        return {
-            "status": "success",
-            "scene_id": getattr(scene, 'id', 'unknown'),
-            "video_url": None,
-            "audio_url": None,
-            "processing_time": 2.0,
-            "mode": self.mode,
-            "note": "Video generation not available - models need to be loaded"
-        }
+        try:
+            # Import and use the actual pipeline
+            from cinema_pipeline import Scene
+            
+            # Convert to proper Scene object if needed
+            if not hasattr(scene, 'duration'):
+                scene.duration = 5  # Default fast duration
+            
+            # Limit duration for speed
+            scene.duration = min(scene.duration, 15)  # Max 15s for speed
+            
+            # Generate video using the pipeline
+            video_path = await self.generate_video(scene)
+            
+            processing_time = time.time() - start_time
+            
+            return {
+                "status": "success",
+                "scene_id": getattr(scene, 'id', 'unknown'),
+                "video_path": video_path,
+                "processing_time": processing_time,
+                "mode": self.mode,
+                "duration": scene.duration,
+                "note": f"Generated in {processing_time:.2f}s"
+            }
+            
+        except Exception as e:
+            processing_time = time.time() - start_time
+            logger.error(f"Scene processing failed: {e}")
+            
+            return {
+                "status": "error", 
+                "scene_id": getattr(scene, 'id', 'unknown'),
+                "error": str(e),
+                "processing_time": processing_time,
+                "mode": self.mode
+            }
     
     def develop_concept(self, concept: str, options: Dict) -> Dict:
         return {
@@ -424,6 +446,26 @@ def process_job_sync(job_input: Dict) -> Dict:
             
             options = job_input.get("options", {})
             return pipeline.develop_concept(concept, options)
+
+        elif request_type == "natural_language_prompt":
+            if not pipeline:
+                return {"error": "Pipeline not initialized"}
+                
+            prompt = job_input.get("prompt", "")
+            if not prompt:
+                return {"error": "No prompt provided"}
+            
+            options = job_input.get("options", {})
+            
+            # Run async method in executor since handler is sync
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(pipeline.process_natural_language_prompt(prompt, options))
+                return result
+            finally:
+                loop.close()
 
         elif request_type == "list_models":
             return {

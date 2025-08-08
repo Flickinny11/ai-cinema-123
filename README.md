@@ -57,6 +57,7 @@ docker push your-registry/ai-cinema:v1.0
 - `script_to_video` - Convert script to video scenes
 - `single_scene` - Generate single video scene
 - `concept_to_script` - Develop concept into full script
+- `natural_language_prompt` - **NEW**: Process natural language with multi-character dialogue
 
 ## GPU Requirements
 
@@ -65,3 +66,27 @@ docker push your-registry/ai-cinema:v1.0
 - **Fast Mode**: RTX 4090/3090 24GB+ (quantized models)
 
 Models download automatically on first startup.
+
+## Natural Language Processing
+
+The pipeline now supports natural language prompts with multi-character dialogue:
+
+```json
+{
+  "type": "natural_language_prompt",
+  "prompt": "Sarah walks into the coffee shop and sees Mike. \"Hey Mike!\" she says excitedly. Mike looks up and smiles. \"Sarah! Great to see you,\" he replies warmly. They sit down and start chatting about their weekend plans.",
+  "options": {
+    "resolution": "720p",
+    "max_duration": 15
+  }
+}
+```
+
+**Features:**
+- ✅ **Multi-character dialogue** - Automatically detects character names and dialogue
+- ✅ **Emotion detection** - Extracts emotions from dialogue and context
+- ✅ **Action parsing** - Identifies character actions and movements
+- ✅ **Environment detection** - Determines scene setting and atmosphere
+- ✅ **Non-verbal cues** - Processes [laughs], [sighs], and other human sounds
+- ✅ **Camera movements** - Infers appropriate camera work from actions
+- ✅ **Sound effects** - Generates contextual audio based on environment

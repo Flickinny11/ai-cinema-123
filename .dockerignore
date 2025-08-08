@@ -20,5 +20,7 @@ runpod.toml
 !cinema_pipeline.py
 !script_processor.py
 !human_sounds.py
+!natural_language_processor.py
 !model_configs.yaml
 !runpod_handler_production.py
+!models/

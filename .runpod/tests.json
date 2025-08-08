@@ -150,6 +150,27 @@
         "timeout": 240
       },
       {
+        "name": "Natural Language Prompt Test",
+        "description": "Test natural language processing with multi-character dialogue",
+        "input": {
+          "type": "natural_language_prompt",
+          "prompt": "Sarah walks into the coffee shop and sees her friend Mike sitting at a corner table. \"Hey Mike!\" she says excitedly, waving her hand. Mike looks up from his laptop and smiles. \"Sarah! I didn't expect to see you here,\" he replies warmly. Sarah sits down across from him. \"I was just in the neighborhood and thought I'd grab a coffee. What are you working on?\" she asks curiously. Mike closes his laptop and leans back in his chair. \"Just some freelance writing. Nothing too exciting,\" he says with a slight laugh.",
+          "options": {
+            "resolution": "720p",
+            "max_duration": 15
+          }
+        },
+        "expected_output": {
+          "status": "success",
+          "parsed_scene": {
+            "characters": ["*"],
+            "dialogue": ["*"],
+            "environment": "*"
+          }
+        },
+        "timeout": 120
+      },
+      {
         "name": "Voice Cloning Test",
         "description": "Test voice cloning with 6-second sample",
         "input": {
@@ -182,20 +203,24 @@
     },
     "performance_benchmarks": {
       "5s_video_720p": {
-        "expected_time": "2-10s",
-        "max_time": 30
-      },
-      "30s_video_720p": {
-        "expected_time": "45-90s",
-        "max_time": 180
-      },
-      "voice_cloning": {
-        "expected_time": "2-3s per sentence",
+        "expected_time": "1-3s",
         "max_time": 10
       },
-      "script_processing": {
+      "10s_video_720p": {
+        "expected_time": "2-5s", 
+        "max_time": 15
+      },
+      "15s_video_720p": {
+        "expected_time": "3-8s",
+        "max_time": 20
+      },
+      "cold_start": {
         "expected_time": "5-10s",
-        "max_time": 30
+        "max_time": 15
+      },
+      "script_processing": {
+        "expected_time": "2-5s",
+        "max_time": 10
       }
     }
   }

@@ -59,20 +59,38 @@ RUN python3.10 -m pip install --no-cache-dir \
     python-dotenv==1.0.1 \
     openai==1.40.0
 
-# Install essential audio dependencies (minimal working set)
+# Install essential audio dependencies
 RUN python3.10 -m pip install --no-cache-dir \
     pydub==0.25.1 \
     moviepy==1.0.3 \
     torchaudio==2.0.2
 
-# Skip TTS and AudioCraft for now - focus on video generation first
-# These can be added in a future version once we have a working base
+# Install facial processing dependencies
+RUN python3.10 -m pip install --no-cache-dir \
+    mediapipe==0.10.9 \
+    gfpgan==1.3.8 \
+    basicsr==1.4.2 \
+    realesrgan==0.3.0 \
+    facexlib==0.3.0
+
+# Install video processing dependencies
+RUN python3.10 -m pip install --no-cache-dir \
+    insightface==0.7.3 \
+    onnxruntime==1.16.3
 
 # Install additional dependencies that work
 RUN python3.10 -m pip install --no-cache-dir \
     scipy==1.13.0 \
     imageio-ffmpeg==0.4.9 \
     audioread==3.0.1
+
+# Install NLP dependencies for natural language processing
+RUN python3.10 -m pip install --no-cache-dir \
+    spacy==3.7.2 \
+    spacy-transformers==1.3.4
+
+# Download spaCy English model
+RUN python3.10 -m spacy download en_core_web_sm
 
 # Install additional ML dependencies
 RUN python3.10 -m pip install --no-cache-dir \
@@ -86,8 +104,10 @@ RUN mkdir -p /runpod-volume /runpod-volume/cache /app/output
 COPY model_configs.yaml /app/
 COPY script_processor.py /app/
 COPY human_sounds.py /app/
+COPY natural_language_processor.py /app/
 COPY cinema_pipeline.py /app/
 COPY runpod_handler_production.py /app/runpod_handler.py
+COPY models/ /app/models/
 
 # Set Python 3.10 as default
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1

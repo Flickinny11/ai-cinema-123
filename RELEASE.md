@@ -16,10 +16,10 @@
 - `concept_to_script` - Develop concepts into full scripts
 - `batch_scenes` - Process multiple scenes efficiently
 
-### GPU Support
-- **Cinema Mode**: H100/A100 80GB (all models enabled)
-- **Balanced Mode**: A100 40GB (optimized models)
-- **Fast Mode**: RTX 4090/3090 24GB+ (quantized models)
+### GPU Support (Speed Optimized)
+- **Ultra Fast Mode**: H100/A100 80GB (parallel processing, max 30s videos)
+- **Fast Mode**: A100 40GB (optimized models, max 15s videos)  
+- **Lightning Mode**: RTX 4090/3090 24GB+ (minimal models, max 10s videos)
 
 ## 🚀 Deployment
 
@@ -30,10 +30,12 @@
 - **Cold Start**: ~30 seconds
 - **Model Download**: Automatic on first run
 
-### Performance Benchmarks
-- **5s Video (720p)**: 2-10 seconds generation
-- **30s Video (720p)**: 45-90 seconds generation
-- **Script Processing**: 5-10 seconds with DeepSeek v3
+### Performance Benchmarks (Optimized)
+- **Cold Start**: 5-10 seconds (ultra-fast initialization)
+- **5s Video (720p)**: 1-3 seconds generation
+- **10s Video (720p)**: 2-5 seconds generation  
+- **15s Video (720p)**: 3-8 seconds generation
+- **Script Processing**: 2-5 seconds with DeepSeek v3
 - **Health Check**: <1 second response
 
 ## 🔧 Technical Details

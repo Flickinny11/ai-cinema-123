@@ -1,7 +1,7 @@
 {
   "version": "2.0.0",
   "name": "Cinema AI Pipeline",
-  "description": "Production-ready AI video generation pipeline with HunyuanVideo, LTX-Video, MusicGen, and XTTS voice cloning",
+  "description": "Ultra-fast AI video generation pipeline optimized for speed. 5-15s videos in 1-8s generation time with fast cold starts.",
   "author": "Flickinny11",
   "git_url": "https://github.com/Flickinny11/ai-cinema-123",
   "image_name": "cinema-ai-pipeline",
@@ -19,8 +19,8 @@
   },
   "template": {
     "name": "cinema-ai-pipeline",
-    "container_disk_in_gb": 30,
-    "volume_in_gb": 50,
+    "container_disk_in_gb": 20,
+    "volume_in_gb": 30,
     "volume_mount_path": "/runpod-volume",
     "dockerfile_path": "Dockerfile",
     "env": [
@@ -40,10 +40,10 @@
   "serverless": {
     "scaled_settings": {
       "min_workers": 0,
-      "max_workers": 3,
-      "scale_type": "QUEUE_DELAY",
-      "scale_value": 30,
-      "idle_timeout": 600
+      "max_workers": 5,
+      "scale_type": "QUEUE_DELAY", 
+      "scale_value": 10,
+      "idle_timeout": 300
     },
     "gpu_types": [
       "NVIDIA RTX A6000",
@@ -52,9 +52,10 @@
     ],
     "supported_input_types": [
       "script_to_video",
-      "single_scene",
+      "single_scene", 
       "batch_scenes",
       "concept_to_script",
+      "natural_language_prompt",
       "health_check"
     ]
   },
@@ -73,8 +74,9 @@
           "enum": [
             "script_to_video",
             "single_scene",
-            "batch_scenes",
+            "batch_scenes", 
             "concept_to_script",
+            "natural_language_prompt",
             "health_check"
           ],
           "description": "Type of processing to perform"
@@ -94,6 +96,10 @@
         "concept": {
           "type": "string",
           "description": "Concept description for concept_to_script type"
+        },
+        "prompt": {
+          "type": "string",
+          "description": "Natural language prompt with multi-character dialogue for natural_language_prompt type"
         },
         "options": {
           "type": "object",

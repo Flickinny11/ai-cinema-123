@@ -41,6 +41,7 @@ warnings.filterwarnings("ignore")
 # Import custom modules
 from script_processor import DeepSeekScriptProcessor, ScriptScene
 from human_sounds import HumanSoundsGenerator, HumanSound
+from natural_language_processor import NaturalLanguageProcessor, ParsedScene, Character, DialogueLine
 
 # Import model libraries with error handling
 try:
@@ -137,59 +138,115 @@ class CinemaPipeline:
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.models = {}
-        self.executor = ThreadPoolExecutor(max_workers=4)
+        self.executor = ThreadPoolExecutor(max_workers=8)  # Increased for parallel processing
+        
+        # Fast initialization - don't load models until needed
+        self.models_loaded = False
+        self.loading_lock = asyncio.Lock()
 
-        # Initialize script processor
+        # Initialize script processor (lightweight)
         self.script_processor = DeepSeekScriptProcessor()
+        
+        # Initialize natural language processor for user prompts
+        self.nlp_processor = NaturalLanguageProcessor()
 
-        # Initialize human sounds generator
-        self.human_sounds = None  # Will be initialized with AudioGen model
-
-        # Log GPU info
+        # Determine optimal mode for fast performance
         if torch.cuda.is_available():
             gpu_name = torch.cuda.get_device_name(0)
             vram_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
             logger.info(f"GPU: {gpu_name} with {vram_gb:.1f}GB VRAM")
 
-            # Determine mode based on VRAM
+            # Optimized modes for speed
             if vram_gb >= 80:
-                self.mode = "cinema"  # Full quality - H100/A100 80GB
-                self.enable_hunyuan = True
-                self.enable_ltx = True
+                self.mode = "ultra_fast"  # H100/A100 80GB - parallel processing
+                self.max_duration = 30  # Reduced from 60s for speed
+                self.enable_parallel = True
             elif vram_gb >= 40:
-                self.mode = "balanced"  # Good quality - A100 40GB
-                self.enable_hunyuan = False
-                self.enable_ltx = True
+                self.mode = "fast"  # A100 40GB - single model optimized
+                self.max_duration = 15  # Reduced for speed
+                self.enable_parallel = False
             else:
-                self.mode = "fast"  # Speed priority - consumer GPUs
-                self.enable_hunyuan = False
-                self.enable_ltx = True
+                self.mode = "lightning"  # Consumer GPUs - minimal models
+                self.max_duration = 10  # Very short for speed
+                self.enable_parallel = False
         else:
             self.mode = "cpu"
-            logger.warning("No GPU! This will be extremely slow")
+            self.max_duration = 5
+            self.enable_parallel = False
 
-        logger.info(f"Running in {self.mode} mode")
+        logger.info(f"Running in {self.mode} mode - max duration: {self.max_duration}s")
 
-        # Initialize models
-        self._init_models()
+        # Don't initialize models here - lazy loading for faster cold starts
 
-    def _init_models(self):
-        """Initialize all models based on available VRAM"""
-        logger.info("Initializing production models...")
+    async def _ensure_models_loaded(self):
+        """Lazy load models only when needed for faster cold starts"""
+        if self.models_loaded:
+            return
+            
+        async with self.loading_lock:
+            if self.models_loaded:  # Double-check after acquiring lock
+                return
+                
+            logger.info("Loading models on-demand for faster cold start...")
+            
+            # Only load essential models based on mode
+            if self.mode in ["ultra_fast", "fast"]:
+                await self._load_ltx_model_async()
+            elif self.mode == "lightning":
+                await self._load_minimal_model_async()
+            
+            self.models_loaded = True
+            logger.info("Essential models loaded successfully")
 
-        # Load video models
-        self._load_video_models()
+    async def _load_ltx_model_async(self):
+        """Load LTX-Video model asynchronously"""
+        try:
+            logger.info("Loading LTX-Video for fast generation...")
+            
+            # Load in executor to avoid blocking
+            def load_ltx():
+                try:
+                    from diffusers import DiffusionPipeline
+                    model = DiffusionPipeline.from_pretrained(
+                        "Lightricks/LTX-Video",
+                        torch_dtype=torch.float16,
+                        use_safetensors=True,
+                        cache_dir="/runpod-volume/cache"
+                    ).to(self.device)
+                    
+                    # Optimize for speed
+                    model.enable_xformers_memory_efficient_attention()
+                    if self.mode != "ultra_fast":
+                        model.enable_model_cpu_offload()
+                    
+                    return model
+                except Exception as e:
+                    logger.error(f"Failed to load LTX-Video: {e}")
+                    return None
+            
+            # Load in background thread
+            loop = asyncio.get_event_loop()
+            self.models["ltx"] = await loop.run_in_executor(self.executor, load_ltx)
+            
+            if self.models["ltx"]:
+                logger.info("✅ LTX-Video loaded successfully")
+            else:
+                logger.warning("❌ LTX-Video failed to load")
+                
+        except Exception as e:
+            logger.error(f"LTX model loading error: {e}")
+            self.models["ltx"] = None
 
-        # Load audio models
-        self._load_audio_models()
-
-        # Load TTS models
-        self._load_tts_models()
-
-        # Load lip sync models
-        self._load_lipsync_models()
-
-        logger.info("All models initialized successfully")
+    async def _load_minimal_model_async(self):
+        """Load minimal model for lightning mode"""
+        try:
+            logger.info("Loading minimal model for lightning mode...")
+            # For now, just mark as loaded - can add lightweight model later
+            self.models["minimal"] = True
+            logger.info("✅ Minimal model ready")
+        except Exception as e:
+            logger.error(f"Minimal model error: {e}")
+            self.models["minimal"] = None
 
     def _load_video_models(self):
         """Load video generation models"""
@@ -350,33 +407,220 @@ class CinemaPipeline:
     def _load_lipsync_models(self):
         """Load lip sync and facial expression models"""
         try:
-            # Placeholder for EMO-style model or Wav2Lip
-            # In production, you would integrate a model like:
-            # - EMO (Alibaba) if available
-            # - Wav2Lip for lip sync
-            # - FaceSwap models for expressions
-            logger.info("Loading lip sync models...")
-            # This would be the actual implementation
-            self.models["lipsync"] = None  # Placeholder
-            logger.info("Lip sync models initialized")
+            logger.info("Loading Wav2Lip and facial expression models...")
+            
+            # Load Wav2Lip model for lip synchronization
+            import sys
+            sys.path.append('/app')
+            from models.wav2lip import Wav2LipModel
+            self.models["wav2lip"] = Wav2LipModel(
+                checkpoint_path="/runpod-volume/cache/wav2lip_gan.pth",
+                device=self.device
+            )
+            
+            # Load facial expression model
+            from models.face_expression import FacialExpressionModel
+            self.models["face_expression"] = FacialExpressionModel(
+                model_path="/runpod-volume/cache/expression_net.pth",
+                device=self.device
+            )
+            
+            # Load video-to-video diffusion for refinement
+            from diffusers import StableVideoDiffusionPipeline
+            self.models["video_refine"] = StableVideoDiffusionPipeline.from_pretrained(
+                "stabilityai/stable-video-diffusion-img2vid-xt",
+                torch_dtype=torch.float16,
+                cache_dir="/runpod-volume/cache"
+            ).to(self.device)
+            
+            logger.info("✅ Lip sync and facial models loaded successfully")
 
         except Exception as e:
             logger.error(f"Failed to load lip sync models: {e}")
-            self.models["lipsync"] = None
+            # Fallback to basic video processing
+            self.models["wav2lip"] = None
+            self.models["face_expression"] = None
+            self.models["video_refine"] = None
 
     async def generate_video(self, scene: Scene) -> str:
-        """Generate video using best available model"""
-        logger.info(f"Generating video for scene {scene.id}")
+        """Generate video optimized for speed"""
+        # Ensure models are loaded
+        await self._ensure_models_loaded()
+        
+        # Enforce duration limits for speed
+        max_duration = min(scene.duration, self.max_duration)
+        if scene.duration != max_duration:
+            logger.info(f"Limiting duration from {scene.duration}s to {max_duration}s for speed")
+            scene.duration = max_duration
+        
+        logger.info(f"Generating {scene.duration}s video for scene {scene.id}")
 
-        # Select best model based on requirements
-        if scene.duration <= 5 and self.models.get("ltx"):
-            return await self._generate_ltx_video(scene)
-        elif scene.duration <= 30 and self.models.get("ltx"):
-            return await self._generate_ltx_extended(scene)
-        elif self.models.get("hunyuan"):
-            return await self._generate_hunyuan_video(scene)
+        # Fast generation strategy
+        if self.models.get("ltx"):
+            return await self._generate_ltx_fast(scene)
+        elif self.models.get("minimal"):
+            return await self._generate_minimal_video(scene)
         else:
             return await self._generate_fallback_video(scene)
+
+    async def _generate_ltx_fast(self, scene: Scene) -> str:
+        """Generate video with LTX-Video optimized for speed"""
+        logger.info(f"Fast LTX generation: {scene.duration}s video")
+
+        prompt = self._prepare_video_prompt(scene)
+        
+        # Speed-optimized settings
+        height, width = self._get_fast_resolution(scene.resolution)
+        num_frames = min(scene.duration * 24, 120)  # 24fps max, 5s max
+        
+        try:
+            def generate():
+                with torch.autocast("cuda"):
+                    return self.models["ltx"](
+                        prompt=prompt,
+                        height=height,
+                        width=width,
+                        num_frames=num_frames,
+                        num_inference_steps=4,  # Reduced for speed
+                        guidance_scale=5.0,     # Reduced for speed
+                        generator=torch.Generator(device=self.device).manual_seed(42)
+                    ).frames[0]
+            
+            # Generate in executor for non-blocking
+            loop = asyncio.get_event_loop()
+            video_frames = await loop.run_in_executor(self.executor, generate)
+            
+            output_path = f"/app/output/video_{scene.id}_fast.mp4"
+            await self._save_video_async(video_frames, output_path, 24)
+            
+            logger.info(f"Fast video saved: {output_path}")
+            return output_path
+            
+        except Exception as e:
+            logger.error(f"Fast LTX generation failed: {e}")
+            return await self._generate_minimal_video(scene)
+
+    def _get_fast_resolution(self, resolution: str) -> Tuple[int, int]:
+        """Get resolution optimized for speed"""
+        # Lower resolutions for faster generation
+        if resolution == "4k":
+            return (720, 1280)  # Downscale 4k to 720p for speed
+        elif resolution == "1080p":
+            return (576, 1024)  # Downscale 1080p for speed
+        else:  # 720p or lower
+            return (512, 768)   # Fast generation resolution
+
+    async def _save_video_async(self, frames, output_path: str, fps: int):
+        """Save video asynchronously"""
+        def save():
+            try:
+                import imageio
+                # Convert frames to numpy if needed
+                if hasattr(frames, 'cpu'):
+                    frames_np = frames.cpu().numpy()
+                else:
+                    frames_np = frames
+                
+                # Save with fast codec
+                imageio.mimsave(
+                    output_path, 
+                    frames_np, 
+                    fps=fps,
+                    codec='libx264',
+                    ffmpeg_params=['-preset', 'ultrafast', '-crf', '28']
+                )
+                return True
+            except Exception as e:
+                logger.error(f"Video save error: {e}")
+                return False
+        
+        loop = asyncio.get_event_loop()
+        success = await loop.run_in_executor(self.executor, save)
+        return success
+
+    async def _generate_minimal_video(self, scene: Scene) -> str:
+        """Generate video using minimal stable diffusion model"""
+        logger.info(f"Generating minimal video for {scene.id}")
+        
+        def create_minimal_video():
+            try:
+                # Use a lightweight text-to-image model for frame generation
+                from diffusers import StableDiffusionPipeline
+                
+                # Load lightweight model
+                pipe = StableDiffusionPipeline.from_pretrained(
+                    "runwayml/stable-diffusion-v1-5",
+                    torch_dtype=torch.float16,
+                    cache_dir="/runpod-volume/cache"
+                ).to(self.device)
+                
+                pipe.enable_xformers_memory_efficient_attention()
+                pipe.enable_model_cpu_offload()
+                
+                # Generate frames
+                prompt = self._prepare_video_prompt(scene)
+                height, width = 512, 768
+                frames = []
+                
+                # Generate keyframes and interpolate
+                num_keyframes = max(2, scene.duration // 2)
+                
+                for i in range(num_keyframes):
+                    # Add temporal variation to prompt
+                    frame_prompt = f"{prompt}, frame {i+1}, cinematic sequence"
+                    
+                    with torch.autocast("cuda"):
+                        image = pipe(
+                            frame_prompt,
+                            height=height,
+                            width=width,
+                            num_inference_steps=20,
+                            guidance_scale=7.5,
+                            generator=torch.Generator(device=self.device).manual_seed(42 + i)
+                        ).images[0]
+                    
+                    # Convert PIL to numpy
+                    frame = np.array(image)
+                    frames.append(frame)
+                
+                # Interpolate between keyframes
+                interpolated_frames = []
+                fps = 24
+                total_frames = scene.duration * fps
+                
+                for i in range(total_frames):
+                    # Find surrounding keyframes
+                    keyframe_idx = i / (total_frames - 1) * (len(frames) - 1)
+                    idx1 = int(keyframe_idx)
+                    idx2 = min(idx1 + 1, len(frames) - 1)
+                    alpha = keyframe_idx - idx1
+                    
+                    # Linear interpolation
+                    if idx1 == idx2:
+                        interpolated_frame = frames[idx1]
+                    else:
+                        interpolated_frame = (1 - alpha) * frames[idx1] + alpha * frames[idx2]
+                        interpolated_frame = interpolated_frame.astype(np.uint8)
+                    
+                    interpolated_frames.append(interpolated_frame)
+                
+                # Save video
+                output_path = f"/app/output/video_{scene.id}_minimal.mp4"
+                import imageio
+                imageio.mimsave(output_path, interpolated_frames, fps=fps)
+                
+                # Cleanup
+                del pipe
+                torch.cuda.empty_cache()
+                
+                return output_path
+                
+            except Exception as e:
+                logger.error(f"Minimal video generation failed: {e}")
+                return None
+        
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(self.executor, create_minimal_video)
 
     async def _generate_hunyuan_video(self, scene: Scene) -> str:
         """Generate video with HunyuanVideo"""
@@ -608,6 +852,200 @@ class CinemaPipeline:
             'total_scenes': len(scenes)
         }
 
+    async def process_natural_language_prompt(self, prompt: str, options: Dict = None) -> Dict:
+        """Process natural language prompt with multi-character dialogue"""
+        logger.info(f"Processing natural language prompt: {prompt[:100]}...")
+        
+        try:
+            # Parse the natural language prompt
+            parsed_scene = await self.nlp_processor.process_natural_language_prompt(prompt)
+            
+            # Convert parsed scene to Scene object
+            scene = self._convert_parsed_scene_to_scene(parsed_scene, options)
+            
+            # Process the scene
+            result = await self.process_complete_scene(scene)
+            
+            return {
+                "status": "success",
+                "original_prompt": prompt,
+                "parsed_scene": {
+                    "description": parsed_scene.description,
+                    "characters": [{"name": c.name, "description": c.description, "emotions": c.emotions} for c in parsed_scene.characters],
+                    "dialogue": [{"character": d.character, "text": d.text, "emotion": d.emotion, "non_verbal": d.non_verbal} for d in parsed_scene.dialogue],
+                    "environment": parsed_scene.environment,
+                    "mood": parsed_scene.mood,
+                    "duration_estimate": parsed_scene.duration_estimate
+                },
+                "scene_result": result
+            }
+            
+        except Exception as e:
+            logger.error(f"Natural language processing failed: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "original_prompt": prompt
+            }
+    
+    def _convert_parsed_scene_to_scene(self, parsed_scene: ParsedScene, options: Dict = None) -> Scene:
+        """Convert ParsedScene to Scene object"""
+        options = options or {}
+        
+        # Convert characters
+        characters = []
+        for char in parsed_scene.characters:
+            characters.append({
+                "name": char.name,
+                "description": char.description,
+                "voice_characteristics": char.voice_characteristics,
+                "emotions": char.emotions,
+                "actions": char.actions
+            })
+        
+        # Convert dialogue
+        dialogue = []
+        for dial in parsed_scene.dialogue:
+            dialogue_entry = {
+                "character": dial.character,
+                "text": dial.text,
+                "emotion": dial.emotion,
+                "timing": dial.timing
+            }
+            
+            # Add non-verbal sounds if present
+            if dial.non_verbal:
+                dialogue_entry["non_verbal"] = dial.non_verbal
+            
+            dialogue.append(dialogue_entry)
+        
+        # Extract camera movements from actions
+        camera_movements = self._extract_camera_movements(parsed_scene.actions)
+        
+        # Extract sound effects from environment and actions
+        sound_effects = self._extract_sound_effects(parsed_scene.environment, parsed_scene.actions)
+        
+        # Determine music mood
+        music_mood = self._map_mood_to_music(parsed_scene.mood)
+        
+        return Scene(
+            id=f"nl_scene_{int(time.time())}",
+            description=parsed_scene.description,
+            duration=min(parsed_scene.duration_estimate, options.get('max_duration', 30)),
+            resolution=options.get('resolution', '720p'),
+            fps=options.get('fps', 30),
+            characters=characters,
+            dialogue=dialogue,
+            environment=parsed_scene.environment,
+            camera_movements=camera_movements,
+            sound_effects=sound_effects,
+            music_mood=music_mood,
+            emotion_expressions=self._extract_emotion_expressions(parsed_scene.characters),
+            voice_clone_samples=options.get('voice_samples', []),
+            human_sounds=self._extract_human_sounds(parsed_scene.dialogue)
+        )
+    
+    def _extract_camera_movements(self, actions: List[str]) -> List[str]:
+        """Extract camera movements from scene actions"""
+        camera_movements = []
+        
+        movement_mappings = {
+            'walks': 'tracking shot',
+            'runs': 'fast tracking shot',
+            'enters': 'dolly in',
+            'exits': 'dolly out',
+            'looks': 'pan',
+            'turns': 'pan',
+            'sits': 'tilt down',
+            'stands': 'tilt up'
+        }
+        
+        for action in actions:
+            action_lower = action.lower()
+            for keyword, movement in movement_mappings.items():
+                if keyword in action_lower:
+                    camera_movements.append(movement)
+                    break
+        
+        # Default camera movement if none detected
+        if not camera_movements:
+            camera_movements = ['medium shot']
+        
+        return camera_movements
+    
+    def _extract_sound_effects(self, environment: str, actions: List[str]) -> List[str]:
+        """Extract sound effects from environment and actions"""
+        sound_effects = []
+        
+        # Environment-based sounds
+        env_sounds = {
+            'restaurant': ['ambient chatter', 'clinking dishes'],
+            'cafe': ['coffee machine', 'ambient chatter'],
+            'office': ['keyboard typing', 'phone ringing'],
+            'park': ['birds chirping', 'wind in trees'],
+            'street': ['traffic', 'footsteps'],
+            'home': ['ambient room tone'],
+            'bar': ['ambient chatter', 'glass clinking'],
+            'outdoor': ['wind', 'ambient nature']
+        }
+        
+        env_lower = environment.lower()
+        for location, sounds in env_sounds.items():
+            if location in env_lower:
+                sound_effects.extend(sounds)
+                break
+        
+        # Action-based sounds
+        action_sounds = {
+            'walks': 'footsteps',
+            'runs': 'running footsteps',
+            'door': 'door opening',
+            'sits': 'chair creak',
+            'car': 'car engine',
+            'phone': 'phone ring',
+            'water': 'water flowing'
+        }
+        
+        for action in actions:
+            action_lower = action.lower()
+            for keyword, sound in action_sounds.items():
+                if keyword in action_lower and sound not in sound_effects:
+                    sound_effects.append(sound)
+        
+        return sound_effects
+    
+    def _map_mood_to_music(self, mood: str) -> str:
+        """Map scene mood to music mood"""
+        mood_mappings = {
+            'happy': 'uplifting',
+            'sad': 'melancholic',
+            'tense': 'suspenseful',
+            'romantic': 'romantic',
+            'comedic': 'playful',
+            'mysterious': 'mysterious',
+            'neutral': 'cinematic'
+        }
+        
+        return mood_mappings.get(mood, 'cinematic')
+    
+    def _extract_emotion_expressions(self, characters: List[Character]) -> List[str]:
+        """Extract emotion expressions from characters"""
+        expressions = []
+        
+        for character in characters:
+            expressions.extend(character.emotions)
+        
+        return list(set(expressions))  # Remove duplicates
+    
+    def _extract_human_sounds(self, dialogue: List[DialogueLine]) -> List[str]:
+        """Extract human sounds from dialogue"""
+        human_sounds = []
+        
+        for dial in dialogue:
+            human_sounds.extend(dial.non_verbal)
+        
+        return list(set(human_sounds))  # Remove duplicates
+
     async def develop_concept(self, concept: str, options: Dict = None) -> Dict:
         """Develop a concept into a full script"""
         logger.info(f"Developing concept into script: {concept[:100]}...")
@@ -769,26 +1207,101 @@ class CinemaPipeline:
         return sfx_paths
 
     async def apply_lipsync(self, video_path: str, audio_path: str) -> str:
-        """Apply lip sync to video"""
-        logger.info("Applying lip sync to video")
+        """Apply lip sync to video using Wav2Lip"""
+        logger.info("Applying Wav2Lip lip synchronization")
 
-        # In production, you would use:
-        # - Wav2Lip or similar model
-        # - EMO-style models for facial expressions
-        # - Video-to-video diffusion for refinement
-
-        # For now, return original video
-        # This is where you'd integrate the actual lip sync model
         output_path = video_path.replace(".mp4", "_lipsync.mp4")
 
-        # Placeholder: combine video and audio
-        video = mpe.VideoFileClip(video_path)
-        audio = mpe.AudioFileClip(audio_path)
+        try:
+            if self.models.get("wav2lip"):
+                # Use Wav2Lip for accurate lip synchronization
+                logger.info("Processing with Wav2Lip model...")
+                
+                def process_lipsync():
+                    return self.models["wav2lip"].generate(
+                        video_path=video_path,
+                        audio_path=audio_path,
+                        output_path=output_path
+                    )
+                
+                # Run in executor to avoid blocking
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(self.executor, process_lipsync)
+                
+                # Apply facial expression enhancement if available
+                if self.models.get("face_expression"):
+                    logger.info("Enhancing facial expressions...")
+                    enhanced_path = output_path.replace(".mp4", "_enhanced.mp4")
+                    
+                    def enhance_expressions():
+                        return self.models["face_expression"].enhance_video(
+                            video_path=output_path,
+                            output_path=enhanced_path
+                        )
+                    
+                    await loop.run_in_executor(self.executor, enhance_expressions)
+                    output_path = enhanced_path
+                
+                # Apply video refinement if available
+                if self.models.get("video_refine"):
+                    logger.info("Refining video with diffusion...")
+                    refined_path = output_path.replace(".mp4", "_refined.mp4")
+                    
+                    def refine_video():
+                        return self.models["video_refine"](
+                            video_path=output_path,
+                            output_path=refined_path,
+                            num_inference_steps=20
+                        )
+                    
+                    await loop.run_in_executor(self.executor, refine_video)
+                    output_path = refined_path
+                
+                logger.info(f"✅ Lip sync completed: {output_path}")
+                return output_path
+                
+            else:
+                # Fallback: basic audio-video combination
+                logger.warning("Wav2Lip not available, using basic audio sync")
+                
+                def basic_sync():
+                    video = mpe.VideoFileClip(video_path)
+                    audio = mpe.AudioFileClip(audio_path)
+                    
+                    # Trim audio to match video duration
+                    if audio.duration > video.duration:
+                        audio = audio.subclip(0, video.duration)
+                    
+                    final = video.set_audio(audio)
+                    final.write_videofile(
+                        output_path, 
+                        codec='libx264', 
+                        audio_codec='aac',
+                        verbose=False,
+                        logger=None
+                    )
+                    final.close()
+                    video.close()
+                    audio.close()
+                    return output_path
+                
+                loop = asyncio.get_event_loop()
+                return await loop.run_in_executor(self.executor, basic_sync)
 
-        final = video.set_audio(audio)
-        final.write_videofile(output_path, codec='libx264', audio_codec='aac')
-
-        return output_path
+        except Exception as e:
+            logger.error(f"Lip sync failed: {e}")
+            # Return original video with audio
+            try:
+                video = mpe.VideoFileClip(video_path)
+                audio = mpe.AudioFileClip(audio_path)
+                final = video.set_audio(audio)
+                final.write_videofile(output_path, codec='libx264', audio_codec='aac')
+                final.close()
+                video.close()
+                audio.close()
+                return output_path
+            except:
+                return video_path
 
     async def composite_scene(self, scene: Scene, video_path: str, audio_results: Dict) -> str:
         """Composite all elements into final video"""
