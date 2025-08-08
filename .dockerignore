@@ -23,4 +23,3 @@ runpod.toml
 !natural_language_processor.py
 !model_configs.yaml
 !runpod_handler_production.py
-!models/
